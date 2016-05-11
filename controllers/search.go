@@ -85,32 +85,51 @@ func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) er
 }
 
 // SearchContacts performs a cross_field search request to elasticsearch and returns the results via RPC
+// search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
 func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
+
+	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
 	Query = Query.Type("cross_fields")
 	Query = Query.Operator("and")
-
+	logs.Debug("args.Search.Fields[0]:" + args.Search.Fields[0])
 	if args.Search.Fields[0] == "firstname" {
-		logs.Debug("firstname search")
+		//logs.Debug("firstname search")
 		Query = Query.Field("firstname")
-	} else {
+	} else if args.Search.Fields[0] == "name" {
+		//champs dans lesquels chercher
+		Query = Query.Field("surname")
+	} else if args.Search.Fields[0] == "fullname" {
+		//champs dans lesquels chercher
+		Query = Query.Field("firstname")
+		Query = Query.Field("surname")
+	} else if args.Search.Fields[0] == "address" {
+		//champs dans lesquels chercher
+		Query = Query.Field("address.street")
+		Query = Query.Field("address.city")
+	} else if args.Search.Fields[0] == "all" {
+		//champs dans lesquels chercher
 		Query = Query.Field("surname")
 		Query = Query.Field("firstname")
-		Query = Query.Field("address")
+		Query = Query.Field("address.street")
+		Query = Query.Field("address.city")
 	}
-
+	// donneées à récupérer dans le résultat
 	source := elastic.NewFetchSourceContext(true)
 	source = source.Include("id")
 	source = source.Include("firstname")
 	source = source.Include("surname")
+	source = source.Include("address.street")
+	source = source.Include("address.housenumber")
+	source = source.Include("address.city")
 
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&Query).
-		Size(30000).
+		Size(10000).
 		Sort("surname", true).
 		Do()
 	if err != nil {
@@ -126,6 +145,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 				logs.Error(err)
 				return err
 			}
+			//logs.Debug(reply.Contacts)
 			reply.Contacts = append(reply.Contacts, c)
 		}
 	} else {
@@ -190,12 +210,15 @@ func (s *Search) RetrieveContacts(args models.SearchArgs, reply *models.SearchRe
 	source = source.Include("id")
 	source = source.Include("firstname")
 	source = source.Include("surname")
+	source = source.Include("address.street")
+	source = source.Include("address.housenumber")
+	source = source.Include("address.city")
 
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&Query).
-		Size(10000000).
+		Size(1000).
 		Sort("surname", true).
 		Do()
 	if err != nil {
