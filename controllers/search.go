@@ -155,6 +155,102 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	return nil
 }
 
+// SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
+// search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
+func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.SearchReply) error {
+	logs.Debug("args.Search.Query:%s", args.Search.Query)
+	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
+	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
+
+	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
+	Query = Query.Type("cross_fields")
+	Query = Query.Operator("and")
+	logs.Debug("args.Search.Fields[0]:" + args.Search.Fields[0])
+	if args.Search.Fields[0] == "firstname" {
+		//logs.Debug("firstname search")
+		Query = Query.Field("firstname")
+	} else if args.Search.Fields[0] == "name" {
+		//champs dans lesquels chercher
+		Query = Query.Field("surname")
+	} else if args.Search.Fields[0] == "fullname" {
+		//champs dans lesquels chercher
+		Query = Query.Field("firstname")
+		Query = Query.Field("surname")
+	} else if args.Search.Fields[0] == "address" {
+		//champs dans lesquels chercher
+		Query = Query.Field("address.street")
+		Query = Query.Field("address.city")
+	} else if args.Search.Fields[0] == "all" {
+		//champs dans lesquels chercher
+		Query = Query.Field("surname")
+		Query = Query.Field("firstname")
+		Query = Query.Field("address.street")
+		Query = Query.Field("address.city")
+	}
+	// donneées à récupérer dans le résultat
+	source := elastic.NewFetchSourceContext(true)
+	source = source.Include("id")
+	source = source.Include("firstname")
+	source = source.Include("surname")
+	source = source.Include("address.street")
+	source = source.Include("address.housenumber")
+	source = source.Include("address.city")
+
+	// create an aggregation
+	timeline := elastic.NewTermsAggregation().Field("address.latitude").Size(5000)
+	histogram := elastic.NewTopHitsAggregation().Size(1)
+	timeline = timeline.SubAggregation("history", histogram)
+
+	searchResult, err := s.Client.Search().
+		Index("contacts").
+		FetchSourceContext(source).
+		Query(&Query).
+		Size(10000).
+		Aggregation("timeline", timeline).
+		Sort("surname", true).
+		Do()
+	if err != nil {
+		logs.Critical(err)
+		return err
+	}
+
+	agg, found := searchResult.Aggregations.Terms("timeline")
+	if !found {
+		logs.Debug("we sould have a terms aggregation called %q", "timeline")
+	}
+	if searchResult.Aggregations != nil {
+		for _, bucket := range agg.Buckets {
+			logs.Debug(bucket.DocCount)
+			//numerorue := bucket.Key
+			// The sub-aggregation history should have the number of tweets per year.
+			histogram, found := bucket.TopHits("history")
+			if found {
+				for _, addresse := range histogram.Hits.Hits {
+					logs.Debug(addresse)
+					logs.Debug(*addresse)
+					//logs.Debug("numerorue %q has %d tweets in %q\n", numerorue, addresse.DocCount, addresse.KeyAsString)
+					var c models.Contact
+
+					err := json.Unmarshal(*addresse.Source, &c)
+					if err != nil {
+						logs.Error(err)
+						return err
+					}
+					//logs.Debug(reply.Contacts)
+
+					reply.Contacts = append(reply.Contacts, c)
+
+				}
+			}
+			//reply.DocCount = append(reply.DocCount, bucket.DocCount)
+		}
+	} else {
+		reply.Contacts = nil
+	}
+
+	return nil
+}
+
 // SearchViaGeopolygon performs a GeoPolygon search request to elasticsearch and returns the results via RPC
 func (s *Search) SearchIDViaGeoPolygon(args models.SearchArgs, reply *models.SearchReply) error {
 	Filter := elastic.NewGeoPolygonFilter("location")

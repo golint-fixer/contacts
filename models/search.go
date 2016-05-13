@@ -19,4 +19,5 @@ type SearchReply struct {
 	Contacts []Contact
 	Facts    []Fact
 	IDs      []uint
+	DocCount uint
 }
