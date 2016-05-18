@@ -94,7 +94,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
 	Query = Query.Type("cross_fields")
 	Query = Query.Operator("and")
-	logs.Debug("args.Search.Fields[0]:" + args.Search.Fields[0])
+
 	if args.Search.Fields[0] == "firstname" {
 		//logs.Debug("firstname search")
 		Query = Query.Field("firstname")
@@ -165,48 +165,27 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
 	Query = Query.Type("cross_fields")
 	Query = Query.Operator("and")
-	logs.Debug("args.Search.Fields[0]:" + args.Search.Fields[0])
-	if args.Search.Fields[0] == "firstname" {
-		//logs.Debug("firstname search")
-		Query = Query.Field("firstname")
-	} else if args.Search.Fields[0] == "name" {
-		//champs dans lesquels chercher
-		Query = Query.Field("surname")
-	} else if args.Search.Fields[0] == "fullname" {
-		//champs dans lesquels chercher
-		Query = Query.Field("firstname")
-		Query = Query.Field("surname")
-	} else if args.Search.Fields[0] == "address" {
-		//champs dans lesquels chercher
-		Query = Query.Field("address.street")
-		Query = Query.Field("address.city")
-	} else if args.Search.Fields[0] == "all" {
-		//champs dans lesquels chercher
-		Query = Query.Field("surname")
-		Query = Query.Field("firstname")
-		Query = Query.Field("address.street")
-		Query = Query.Field("address.city")
-	}
+
+	Query = Query.Field("address.street")
+	Query = Query.Field("address.city")
+
 	// donneées à récupérer dans le résultat
 	source := elastic.NewFetchSourceContext(true)
-	source = source.Include("id")
-	source = source.Include("firstname")
-	source = source.Include("surname")
 	source = source.Include("address.street")
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
 
 	// create an aggregation
-	timeline := elastic.NewTermsAggregation().Field("address.latitude").Size(5000)
-	histogram := elastic.NewTopHitsAggregation().Size(1)
-	timeline = timeline.SubAggregation("history", histogram)
+	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(5000)
+	subaggreg_unique := elastic.NewTopHitsAggregation().Size(1)
+	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
 
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&Query).
 		Size(10000).
-		Aggregation("timeline", timeline).
+		Aggregation("result_aggreg", aggreg_lattitude).
 		Sort("surname", true).
 		Do()
 	if err != nil {
@@ -214,21 +193,17 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 		return err
 	}
 
-	agg, found := searchResult.Aggregations.Terms("timeline")
+	agg, found := searchResult.Aggregations.Terms("result_aggreg")
 	if !found {
-		logs.Debug("we sould have a terms aggregation called %q", "timeline")
+		logs.Debug("we sould have a terms aggregation called %q", "aggreg_lattitude")
 	}
 	if searchResult.Aggregations != nil {
 		for _, bucket := range agg.Buckets {
-			logs.Debug(bucket.DocCount)
-			//numerorue := bucket.Key
-			// The sub-aggregation history should have the number of tweets per year.
-			histogram, found := bucket.TopHits("history")
+
+			subaggreg_unique, found := bucket.TopHits("result_subaggreg")
 			if found {
-				for _, addresse := range histogram.Hits.Hits {
-					logs.Debug(addresse)
-					logs.Debug(*addresse)
-					//logs.Debug("numerorue %q has %d tweets in %q\n", numerorue, addresse.DocCount, addresse.KeyAsString)
+				for _, addresse := range subaggreg_unique.Hits.Hits {
+
 					var c models.Contact
 
 					err := json.Unmarshal(*addresse.Source, &c)
@@ -236,18 +211,14 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 						logs.Error(err)
 						return err
 					}
-					//logs.Debug(reply.Contacts)
-
+					c.Address.NbCitoyens = bucket.DocCount
 					reply.Contacts = append(reply.Contacts, c)
-
 				}
 			}
-			//reply.DocCount = append(reply.DocCount, bucket.DocCount)
 		}
 	} else {
 		reply.Contacts = nil
 	}
-
 	return nil
 }
 

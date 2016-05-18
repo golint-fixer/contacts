@@ -12,3 +12,7 @@ type Contacts struct {
 type Contact struct {
 	Contact *models.Contact `json:"contact"`
 }
+
+type ReplySearchAgg struct {
+	Contacts []models.Contact `json:"contacts"`
+}
