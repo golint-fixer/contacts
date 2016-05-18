@@ -177,14 +177,14 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 
 	// create an aggregation
 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(5000)
-	subaggreg_unique := elastic.NewTopHitsAggregation().Size(1)
+	subaggreg_unique := elastic.NewTopHitsAggregation().Size(1000)
 	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
 
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&Query).
-		Size(10000).
+		Size(0).
 		Aggregation("result_aggreg", aggreg_lattitude).
 		Sort("surname", true).
 		Do()
@@ -198,12 +198,18 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 		logs.Debug("we sould have a terms aggregation called %q", "aggreg_lattitude")
 	}
 	if searchResult.Aggregations != nil {
+
 		for _, bucket := range agg.Buckets {
 
 			subaggreg_unique, found := bucket.TopHits("result_subaggreg")
+
 			if found {
+				// pour chaque addresse aggrégée
+				var cs models.AddressAggReply
+
 				for _, addresse := range subaggreg_unique.Hits.Hits {
 
+					//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
 					var c models.Contact
 
 					err := json.Unmarshal(*addresse.Source, &c)
@@ -211,9 +217,15 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 						logs.Error(err)
 						return err
 					}
+					//retourne le nombre de résultat pas adresse
 					c.Address.NbCitoyens = bucket.DocCount
-					reply.Contacts = append(reply.Contacts, c)
+
+					// retourne une liste d'adresses aggrégées uniques.
+					//reply.Contacts = append(reply.Contacts, c)
+					cs.Contacts = append(cs.Contacts, c)
+
 				}
+				reply.AddressAggs = append(reply.AddressAggs, cs)
 			}
 		}
 	} else {

@@ -13,6 +13,6 @@ type Contact struct {
 	Contact *models.Contact `json:"contact"`
 }
 
-type ReplySearchAgg struct {
-	Contacts []models.Contact `json:"contacts"`
+type AddressAggs struct {
+	AddressAggs []models.AddressAggReply `json:"AddressAggs"`
 }

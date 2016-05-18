@@ -16,7 +16,12 @@ type SearchArgs struct {
 
 // SearchReply is used in the RPC communications between the gateway and Contacts
 type SearchReply struct {
+	Contacts    []Contact
+	Facts       []Fact
+	IDs         []uint
+	AddressAggs []AddressAggReply
+}
+
+type AddressAggReply struct {
 	Contacts []Contact
-	Facts    []Fact
-	IDs      []uint
 }
