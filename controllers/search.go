@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/quorumsco/contacts/models"
 	"github.com/quorumsco/elastic"
@@ -228,6 +229,85 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 				reply.AddressAggs = append(reply.AddressAggs, cs)
 			}
 		}
+	} else {
+		reply.Contacts = nil
+	}
+	return nil
+}
+
+// SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
+// search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
+func (s *Search) SearchAddressesAggsGeoloc(args models.SearchArgs, reply *models.SearchReply) error {
+	logs.Debug("args.Search.Query:%s", args.Search.Query)
+	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
+	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
+
+	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
+	Query = Query.Type("cross_fields")
+	Query = Query.Operator("and")
+
+	Query = Query.Field("address.street")
+	Query = Query.Field("address.city")
+
+	// donneées à récupérer dans le résultat
+	source := elastic.NewFetchSourceContext(true)
+	source = source.Include("address.street")
+	source = source.Include("address.housenumber")
+	source = source.Include("address.city")
+
+	// create an aggregation
+	//Point(-70, 40)
+
+	var geopoint = strings.Split(args.Search.Query, ",")
+	a, err := strconv.ParseFloat(geopoint[0], 64)
+	if err != nil {
+		logs.Critical(err)
+		return err
+	}
+	b, err := strconv.ParseFloat(geopoint[1], 64)
+	if err != nil {
+		logs.Critical(err)
+		return err
+	}
+	logs.Debug(a)
+	logs.Debug(b)
+	//aggreg_sortGeodistance := elastic.NewTopHitsAggregation().SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Order(true).Unit("km").SortMode("min").GeoDistance("sloppy_arc")).Size(500)
+	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(500).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
+	searchResult, err := s.Client.Search().
+		Index("contacts").
+		FetchSourceContext(source).
+		Aggregation("aggreg_sortGeodistance", aggreg_sortGeodistance).
+		Do()
+	if err != nil {
+		logs.Critical(err)
+		return err
+	}
+
+	agg, found := searchResult.Aggregations.TopHits("aggreg_sortGeodistance")
+	if !found {
+		logs.Debug("we sould have a terms aggregation called %q", "aggreg_sortGeodistance")
+	}
+	if agg != nil {
+
+		//subaggreg_unique, found := bucket.TopHits("aggreg_sortGeodistance")
+		//logs.Debug("bucket.TopHits(aggreg_sortGeodistance) au moins de 1")
+
+		for _, res_contact := range agg.Hits.Hits {
+
+			//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+			var c models.Contact
+
+			err := json.Unmarshal(*res_contact.Source, &c)
+			if err != nil {
+				logs.Error(err)
+				return err
+			}
+
+			// retourne une liste d'adresses aggrégées uniques.
+			reply.Contacts = append(reply.Contacts, c)
+		}
+		//logs.Debug(reply.Contacts)
+
 	} else {
 		reply.Contacts = nil
 	}
