@@ -237,7 +237,7 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 
 // SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
 // search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
-func (s *Search) SearchAddressesAggsGeoloc(args models.SearchArgs, reply *models.SearchReply) error {
+func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
@@ -272,7 +272,7 @@ func (s *Search) SearchAddressesAggsGeoloc(args models.SearchArgs, reply *models
 	logs.Debug(a)
 	logs.Debug(b)
 	//aggreg_sortGeodistance := elastic.NewTopHitsAggregation().SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Order(true).Unit("km").SortMode("min").GeoDistance("sloppy_arc")).Size(500)
-	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(500).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
+	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(100).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
