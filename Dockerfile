@@ -1,5 +1,5 @@
 FROM golang
-MAINTAINER Wilmot Guillaume - Quorums
+MAINTAINER Daniel Jean-Baptiste - Quorum Impact
 
 RUN go get github.com/tools/godep
 

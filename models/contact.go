@@ -21,10 +21,9 @@ type Address struct {
 	Addition       string // Complément d'adresse
 	PollingStation string // Code bureau de vote
 
-	Latitude   string `json:"latitude,omitempty"`
-	Longitude  string `json:"longitude,omitempty"`
-	Location   string `json:"location,omitempty"` // as "lat,lon" (for elasticsearch)
-	NbCitoyens int64
+	Latitude  string `json:"latitude,omitempty"`
+	Longitude string `json:"longitude,omitempty"`
+	Location  string `json:"location,omitempty"` // as "lat,lon" (for elasticsearch)
 }
 
 // Contact represents all the components of a contact
@@ -46,8 +45,9 @@ type Contact struct {
 
 	GroupID uint `sql:"not null" db:"group_id" json:"-"`
 
-	Notes []Note `json:"notes,omitempty"`
-	Tags  []Tag  `json:"tags,omitempty" gorm:"many2many:contact_tags;"`
+	Notes     []Note     `json:"notes,omitempty"`
+	Tags      []Tag      `json:"tags,omitempty" gorm:"many2many:contact_tags;"`
+	Formdatas []Formdata `json:"formdatas,omitempty"`
 }
 
 // ContactArgs is used in the RPC communications between the gateway and Contacts

@@ -108,6 +108,7 @@ func serve(ctx *cli.Context) error {
 	rpc.Register(&controllers.Search{Client: client})
 	rpc.Register(&controllers.Contact{DB: db})
 	rpc.Register(&controllers.Note{DB: db})
+	rpc.Register(&controllers.Formdata{DB: db})
 	rpc.Register(&controllers.Tag{DB: db})
 	rpc.Register(&controllers.Mission{DB: db})
 	rpc.Register(&controllers.Fact{DB: db})

@@ -159,8 +159,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 // SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
 // search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
 func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.SearchReply) error {
-	logs.Debug("args.Search.Query:%s", args.Search.Query)
-	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
+	//logs.Debug("args.Search.Query:%s", args.Search.Query)
+	//logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
 
 	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
@@ -199,32 +199,20 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 		logs.Debug("we sould have a terms aggregation called %q", "aggreg_lattitude")
 	}
 	if searchResult.Aggregations != nil {
-
 		for _, bucket := range agg.Buckets {
-
 			subaggreg_unique, found := bucket.TopHits("result_subaggreg")
-
 			if found {
 				// pour chaque addresse aggrégée
 				var cs models.AddressAggReply
-
 				for _, addresse := range subaggreg_unique.Hits.Hits {
-
 					//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
 					var c models.Contact
-
 					err := json.Unmarshal(*addresse.Source, &c)
 					if err != nil {
 						logs.Error(err)
 						return err
 					}
-					//retourne le nombre de résultat pas adresse
-					c.Address.NbCitoyens = bucket.DocCount
-
-					// retourne une liste d'adresses aggrégées uniques.
-					//reply.Contacts = append(reply.Contacts, c)
 					cs.Contacts = append(cs.Contacts, c)
-
 				}
 				reply.AddressAggs = append(reply.AddressAggs, cs)
 			}
