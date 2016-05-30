@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/quorumsco/contacts",
 	"GoVersion": "go1.4",
-	"GodepVersion": "v71",
+	"GodepVersion": "v72",
 	"Deps": [
 		{
 			"ImportPath": "github.com/codegangsta/cli",
@@ -25,10 +25,6 @@
 		{
 			"ImportPath": "github.com/jinzhu/gorm",
 			"Rev": "1d5f5f43f37a19d452a920447108de6e9e7b5e96"
-		},
-		{
-			"ImportPath": "github.com/jinzhu/inflection",
-			"Rev": "3272df6c21d04180007eb3349844c89a3856bc25"
 		},
 		{
 			"ImportPath": "github.com/jmoiron/sqlx",
@@ -56,10 +52,6 @@
 			"Rev": "11fc39a580a008f1f39bb3d11d984fb34ed778d9"
 		},
 		{
-			"ImportPath": "github.com/mattn/go-colorable",
-			"Rev": "3dac7b4f76f6e17fb39b768b89e3783d16e237fe"
-		},
-		{
 			"ImportPath": "github.com/mattn/go-isatty",
 			"Rev": "7fcbc72f853b92b5720db4a6b8482be612daef24"
 		},
@@ -67,6 +59,10 @@
 			"ImportPath": "github.com/mattn/go-sqlite3",
 			"Comment": "v1.1.0",
 			"Rev": "3b3f1d01b2696af5501697c35629048c227586ab"
+		},
+		{
+			"ImportPath": "github.com/qor/inflection",
+			"Rev": "3272df6c21d04180007eb3349844c89a3856bc25"
 		},
 		{
 			"ImportPath": "github.com/quorumsco/cmd",
@@ -93,8 +89,8 @@
 			"Rev": "5959135345d4b9c3da3e310dfe26acaa6b690115"
 		},
 		{
-			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03"
+			"ImportPath": "github.com/shiena/ansicolor",
+			"Rev": "a422bbe96644373c5753384a59d678f7d261ff10"
 		}
 	]
 }
