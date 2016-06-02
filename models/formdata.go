@@ -11,7 +11,7 @@ type Formdata struct {
 
 	GroupID     uint `db:"group_id" json:"group_id"`
 	ContactID   uint `db:"contact_id" json:"contact_id"`
-	Form_ref_id uint `db:"Form_ref_id" json:"Form_ref_id"`
+	Form_ref_id uint `db:"form_ref_id" json:"form_ref_id"`
 }
 
 // FormdataArgs is used in the RPC communications between the gateway and Contacts
