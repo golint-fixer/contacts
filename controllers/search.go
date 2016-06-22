@@ -313,7 +313,7 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 	}
 
 	//aggreg_sortGeodistance := elastic.NewTopHitsAggregation().SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Order(true).Unit("km").SortMode("min").GeoDistance("sloppy_arc")).Size(500)
-	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
+	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege * 10).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
