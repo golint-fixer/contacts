@@ -126,11 +126,26 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
 
+	// positionner le nombre de résultats attendus : nb de contacts
+	var size_requete int
+	if len(args.Search.Fields) == 2 {
+		i, err := strconv.Atoi(args.Search.Fields[1])
+		if err == nil {
+			size_requete = i
+		} else {
+			// par défaut
+			size_requete = 1000
+		}
+	} else {
+		// par défaut
+		size_requete = 1000
+	}
+
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&Query).
-		Size(10000).
+		Size(size_requete).
 		Sort("surname", true).
 		Do()
 	if err != nil {
@@ -176,9 +191,33 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
 
+	// positionner le nombre de résultats attendus : nb de contacts ----------
+	var size_nb_contact_par_address int
+	var size_nb_address_aggrege int
+	if len(args.Search.Fields) == 3 {
+		i, err := strconv.Atoi(args.Search.Fields[1])
+		if err == nil {
+			size_nb_contact_par_address = i
+		} else {
+			// par défaut
+			size_nb_contact_par_address = 1000
+		}
+		j, err := strconv.Atoi(args.Search.Fields[2])
+		if err == nil {
+			size_nb_address_aggrege = j
+		} else {
+			// par défaut
+			size_nb_address_aggrege = 1000
+		}
+	} else {
+		// par défaut
+		size_nb_contact_par_address = 1000
+		size_nb_address_aggrege = 1000
+	}
+
 	// create an aggregation
-	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(5000)
-	subaggreg_unique := elastic.NewTopHitsAggregation().Size(1000)
+	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(size_nb_contact_par_address)
+	subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege)
 	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
 
 	searchResult, err := s.Client.Search().
@@ -257,10 +296,24 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 		logs.Critical(err)
 		return err
 	}
-	logs.Debug(a)
-	logs.Debug(b)
+
+	// positionner le nombre de résultats attendus : nb de contacts ----------
+	var size_nb_address_aggrege int
+	if len(args.Search.Fields) == 2 {
+		j, err := strconv.Atoi(args.Search.Fields[1])
+		if err == nil {
+			size_nb_address_aggrege = j
+		} else {
+			// par défaut
+			size_nb_address_aggrege = 1000
+		}
+	} else {
+		// par défaut
+		size_nb_address_aggrege = 1000
+	}
+
 	//aggreg_sortGeodistance := elastic.NewTopHitsAggregation().SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Order(true).Unit("km").SortMode("min").GeoDistance("sloppy_arc")).Size(500)
-	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(100).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
+	aggreg_sortGeodistance := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege).SortBy(elastic.NewGeoDistanceSort("address.location").Point(a, b).Unit("km").GeoDistance("sloppy_arc"))
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
