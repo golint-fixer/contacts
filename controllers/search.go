@@ -87,7 +87,48 @@ func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) er
 
 // SearchContacts performs a cross_field search request to elasticsearch and returns the results via RPC
 // search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
+// exemple de requête elastic exécutée:
+/*
+	{
+  "_source": {
+    "excludes": [],
+    "includes": [
+      "id",
+      "firstname",
+      "surname",
+      "address.street",
+      "address.housenumber",
+      "address.city"
+    ]
+  },
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "multi_match": {
+            "operator": "and",
+            "query": "bap",
+            "tie_breaker": 0,
+            "type": "cross_fields",
+            "fields": [
+              "surname",
+              "firstname"
+            ]
+          }
+        },
+        {
+          "term": {
+            "group_id": "2"
+          }
+        }
+      ]
+    }
+  }
+}
+*/
+
 func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchReply) error {
+	logs.Debug("SearchContacts - search.go")
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
@@ -96,21 +137,23 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	Query = Query.Type("cross_fields")
 	Query = Query.Operator("and")
 
-	if args.Search.Fields[0] == "firstname" {
+	//Query2 := elastic.NewTermQuery("group_id", args.Search.Fields[0])
+
+	if args.Search.Fields[1] == "firstname" {
 		//logs.Debug("firstname search")
 		Query = Query.Field("firstname")
-	} else if args.Search.Fields[0] == "name" {
+	} else if args.Search.Fields[1] == "name" {
 		//champs dans lesquels chercher
 		Query = Query.Field("surname")
-	} else if args.Search.Fields[0] == "fullname" {
+	} else if args.Search.Fields[1] == "fullname" {
 		//champs dans lesquels chercher
 		Query = Query.Field("firstname")
 		Query = Query.Field("surname")
-	} else if args.Search.Fields[0] == "address" {
+	} else if args.Search.Fields[1] == "address" {
 		//champs dans lesquels chercher
 		Query = Query.Field("address.street")
 		Query = Query.Field("address.city")
-	} else if args.Search.Fields[0] == "all" {
+	} else if args.Search.Fields[1] == "all" {
 		//champs dans lesquels chercher
 		Query = Query.Field("surname")
 		Query = Query.Field("firstname")
@@ -126,10 +169,14 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
 
+	bq := elastic.NewBoolQuery()
+	bq = bq.Must(Query)
+	bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
+
 	// positionner le nombre de résultats attendus : nb de contacts
 	var size_requete int
-	if len(args.Search.Fields) == 2 {
-		i, err := strconv.Atoi(args.Search.Fields[1])
+	if len(args.Search.Fields) == 3 {
+		i, err := strconv.Atoi(args.Search.Fields[2])
 		if err == nil {
 			size_requete = i
 		} else {
@@ -144,7 +191,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
-		Query(&Query).
+		Query(&bq).
 		Size(size_requete).
 		Sort("surname", true).
 		Do()
@@ -173,6 +220,67 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 
 // SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
 // search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
+// exemple de requête elastic exécutée:
+/*
+
+{
+  "_source": {
+    "includes": [
+      "id",
+      "firstname",
+      "surname",
+      "address.street",
+      "address.housenumber",
+      "address.city"
+    ]
+  },
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "group_id": "2"
+          }
+        },
+        {
+          "term": {
+            "address.street": "men"
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "subdistinct": {
+      "terms": {
+        "field": "address.latitude",
+        "size": 5000
+      },
+      "aggs": {
+        "subdistinct": {
+          "top_hits": {
+            "size": 100,
+            "_source": [
+              "id",
+              "surname",
+              "address.id",
+              "address.housenumber",
+              "address.street",
+              "address.city",
+              "address.postalcode"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "from": 0,
+  "size": 0,
+  "sort": []
+}
+
+*/
+
 func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.SearchReply) error {
 	//logs.Debug("args.Search.Query:%s", args.Search.Query)
 	//logs.Debug("args.Search.Fields:%s", args.Search.Fields)
@@ -194,15 +302,15 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 	// positionner le nombre de résultats attendus : nb de contacts ----------
 	var size_nb_contact_par_address int
 	var size_nb_address_aggrege int
-	if len(args.Search.Fields) == 3 {
-		i, err := strconv.Atoi(args.Search.Fields[1])
+	if len(args.Search.Fields) == 4 {
+		i, err := strconv.Atoi(args.Search.Fields[2])
 		if err == nil {
 			size_nb_contact_par_address = i
 		} else {
 			// par défaut
 			size_nb_contact_par_address = 1000
 		}
-		j, err := strconv.Atoi(args.Search.Fields[2])
+		j, err := strconv.Atoi(args.Search.Fields[3])
 		if err == nil {
 			size_nb_address_aggrege = j
 		} else {
@@ -215,6 +323,10 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 		size_nb_address_aggrege = 1000
 	}
 
+	bq := elastic.NewBoolQuery()
+	bq = bq.Must(Query)
+	bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
+
 	// create an aggregation
 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(size_nb_contact_par_address)
 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege)
@@ -223,7 +335,7 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
-		Query(&Query).
+		Query(&bq).
 		Size(0).
 		Aggregation("result_aggreg", aggreg_lattitude).
 		Sort("surname", true).
@@ -267,14 +379,9 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
-	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
 
-	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
-	Query = Query.Type("cross_fields")
-	Query = Query.Operator("and")
-
-	Query = Query.Field("address.street")
-	Query = Query.Field("address.city")
+	bq := elastic.NewBoolQuery()
+	bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
 
 	// donneées à récupérer dans le résultat
 	source := elastic.NewFetchSourceContext(true)
@@ -299,8 +406,8 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 
 	// positionner le nombre de résultats attendus : nb de contacts ----------
 	var size_nb_address_aggrege int
-	if len(args.Search.Fields) == 2 {
-		j, err := strconv.Atoi(args.Search.Fields[1])
+	if len(args.Search.Fields) == 3 {
+		j, err := strconv.Atoi(args.Search.Fields[2])
 		if err == nil {
 			size_nb_address_aggrege = j
 		} else {
@@ -317,6 +424,7 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
+		Query(&bq).
 		Aggregation("aggreg_sortGeodistance", aggreg_sortGeodistance).
 		Do()
 	if err != nil {

@@ -34,7 +34,7 @@ type Contact struct {
 	MarriedName *string    `db:"married_name" json:"married_name,omitempty"`
 	Gender      *string    `json:"gender,omitempty"`
 	Birthdate   *time.Time `json:"birthdate,omitempty"`
-	Mail        *string    `json:"mail,omitempty"`
+	Mail        *string    `json:"mail"`
 	Phone       *string    `json:"phone,omitempty"`
 	Mobile      *string    `json:"mobile,omitempty"`
 	Address     Address    `json:"address,omitempty"`
@@ -43,7 +43,7 @@ type Contact struct {
 	Vote    string `json:"vote"`
 	Support string `json:"support"`
 
-	GroupID uint `sql:"not null" db:"group_id" json:"-"`
+	GroupID uint `sql:"not null" db:"group_id" json:"group_id"`
 
 	Notes     []Note     `json:"notes,omitempty"`
 	Tags      []Tag      `json:"tags,omitempty" gorm:"many2many:contact_tags;"`
