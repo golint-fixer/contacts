@@ -14,6 +14,7 @@ type Address struct {
 	HouseNumber    string `json:"housenumber,omitempty"`
 	Street         string `json:"street,omitempty"`
 	PostalCode     string `json:"postalcode,omitempty"`
+	CityCode       string `json:"citycode,omitempty"`
 	City           string `json:"city,omitempty"`
 	County         string // Département
 	State          string // Région
@@ -60,6 +61,30 @@ type ContactArgs struct {
 type ContactReply struct {
 	Contact  *Contact
 	Contacts []Contact
+}
+
+type Geometry struct {
+	Type        string
+	Coordinates []float64
+}
+
+type Feature struct {
+	Geometry Geometry
+}
+
+type Filter struct {
+	Citycode string
+}
+
+type Ban struct {
+	Filters     Filter
+	Features    []Feature
+	Attribution string
+	Licence     string
+	Limit       uint
+	Query       string
+	Type        string
+	Version     string
 }
 
 // Validate checks if the contact is valid
