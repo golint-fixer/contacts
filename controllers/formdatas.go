@@ -77,3 +77,19 @@ func (t *Formdata) Delete(args models.FormdataArgs, reply *models.FormdataReply)
 
 	return nil
 }
+
+// Delete calls the FormdataSQL Delete method and returns the results via RPC
+func (t *Formdata) DeleteAll(args models.FormdataArgs, reply *models.FormdataReply) error {
+	var (
+		err error
+
+		FormdataStore = models.FormdataStore(t.DB)
+	)
+
+	if err = FormdataStore.DeleteAll(args.Formdata, args); err != nil {
+		logs.Debug(err)
+		return err
+	}
+
+	return nil
+}

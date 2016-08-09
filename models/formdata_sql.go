@@ -37,6 +37,15 @@ func (s *FormdataSQL) Delete(n *Formdata, args FormdataArgs) error {
 	return s.DB.Where("group_id = ?", args.Formdata.GroupID).Delete(n).Error
 }
 
+// DeleteAll removes formdata from the database for a dedicated form
+func (s *FormdataSQL) DeleteAll(n *Formdata, args FormdataArgs) error {
+	if n == nil {
+		return errors.New("delete: formdata is nil")
+	}
+
+	return s.DB.Where("group_id = ?", args.Formdata.GroupID).Where("contact_id = ?", args.Formdata.ContactID).Where("form_id = ?", args.Formdata.FormID).Delete(n).Error
+}
+
 // First returns a formdata from the database usin it's ID
 func (s *FormdataSQL) First(args FormdataArgs) (*Formdata, error) {
 	var n Formdata

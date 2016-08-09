@@ -7,6 +7,7 @@ import "github.com/jinzhu/gorm"
 type FormdataDS interface {
 	Save(*Formdata, FormdataArgs) error
 	Delete(*Formdata, FormdataArgs) error
+	DeleteAll(*Formdata, FormdataArgs) error
 	First(FormdataArgs) (*Formdata, error)
 	Find(FormdataArgs) ([]Formdata, error)
 }
