@@ -13,12 +13,12 @@
       "path": "/tmp/contacts.sqlite"
     },
     "elasticsearch": {
-      "host": "http://146.148.115.247",
+      "host": "http://149.202.185.203",
       "port": 9200
     },
     "postgres": {
       "db": "postgres",
-      "host": "146.148.115.247",
+      "host": "149.202.185.203",
       "port": 5432,
       "user": "postgres",
       "password": "postgres"
