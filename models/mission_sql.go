@@ -52,7 +52,7 @@ func (s *MissionSQL) First(args MissionArgs) (*Mission, error) {
 	var m Mission
 
 	if err := s.DB.Where(args.Mission).First(&m).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(args.Mission).First(&m).RecordNotFound() {
 			return nil, nil
 		}
 		return nil, err

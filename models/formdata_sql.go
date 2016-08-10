@@ -51,7 +51,7 @@ func (s *FormdataSQL) First(args FormdataArgs) (*Formdata, error) {
 	var n Formdata
 
 	if err := s.DB.Where(args.Formdata).First(&n).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(args.Formdata).First(&n).RecordNotFound() {
 			return nil, nil
 		}
 		return nil, err

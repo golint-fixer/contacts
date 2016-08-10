@@ -42,24 +42,24 @@ func (s *FactSQL) First(args FactArgs) (*Fact, error) {
 	var f Fact
 
 	if err := s.DB.Where(args.Fact).First(&f).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(args.Fact).First(&f).RecordNotFound() {
 			return nil, nil
 		}
 		return nil, err
 	}
 	if err := s.DB.Where(f.ActionID).First(&f.Action).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(f.ActionID).First(&f.Action).RecordNotFound() {
 			return nil, err
 		}
 		return nil, err
 	}
 	err := s.DB.Where(f.ContactID).First(&f.Contact).Error
-	if err != nil && err != gorm.RecordNotFound {
+	if err != nil && !s.DB.Where(f.ContactID).First(&f.Contact).RecordNotFound() {
 		return nil, err
 	}
 
 	if err == nil {
-		if err := s.DB.Where(f.Contact.AddressID).First(&f.Contact.Address).Error; err != nil && err != gorm.RecordNotFound {
+		if err := s.DB.Where(f.Contact.AddressID).First(&f.Contact.Address).Error; err != nil && !s.DB.Where(f.Contact.AddressID).First(&f.Contact.Address).RecordNotFound() {
 			return nil, err
 		}
 	}

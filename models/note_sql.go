@@ -42,7 +42,7 @@ func (s *NoteSQL) First(args NoteArgs) (*Note, error) {
 	var n Note
 
 	if err := s.DB.Where(args.Note).First(&n).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(args.Note).First(&n).RecordNotFound() {
 			return nil, nil
 		}
 		return nil, err

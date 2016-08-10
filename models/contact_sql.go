@@ -3,7 +3,6 @@ package models
 
 import (
 	"errors"
-
 	"github.com/jinzhu/gorm"
 )
 
@@ -42,13 +41,13 @@ func (s *ContactSQL) First(args ContactArgs) (*Contact, error) {
 	var c Contact
 
 	if err := s.DB.Where(args.Contact).First(&c).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(args.Contact).First(&c).RecordNotFound() {
 			return nil, nil
 		}
 		return nil, err
 	}
 	if err := s.DB.Where(c.AddressID).First(&c.Address).Error; err != nil {
-		if err == gorm.RecordNotFound {
+		if s.DB.Where(c.AddressID).First(&c.Address).RecordNotFound() {
 			return nil, nil
 		}
 		return nil, err
