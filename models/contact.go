@@ -31,7 +31,7 @@ type Address struct {
 type Contact struct {
 	ID          uint       `gorm:"primary_key" json:"id"`
 	Firstname   string     `sql:"not null" json:"firstname"`
-	Surname     string     `sql:"not null" json:"surname"`
+	Surname     string     `json:"surname"`
 	MarriedName *string    `db:"married_name" json:"married_name,omitempty"`
 	Gender      *string    `json:"gender,omitempty"`
 	Birthdate   *time.Time `json:"birthdate,omitempty"`
