@@ -159,7 +159,17 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		Query = Query.Field("firstname")
 		Query = Query.Field("address.street")
 		Query = Query.Field("address.city")
+	} else if args.Search.Fields[1] == "city&name" {
+		//champs dans lesquels chercher
+		Query = Query.Field("address.city")
+		Query = Query.Field("surname")
+	} else if args.Search.Fields[1] == "city&name&street" {
+		//champs dans lesquels chercher
+		Query = Query.Field("address.city")
+		Query = Query.Field("surname")
+		Query = Query.Field("address.street")
 	}
+
 	// donneées à récupérer dans le résultat
 	source := elastic.NewFetchSourceContext(true)
 	source = source.Include("id")
