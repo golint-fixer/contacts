@@ -29,17 +29,20 @@ type Address struct {
 
 // Contact represents all the components of a contact
 type Contact struct {
-	ID          uint       `gorm:"primary_key" json:"id"`
-	Firstname   string     `sql:"not null" json:"firstname"`
-	Surname     string     `json:"surname"`
-	MarriedName *string    `db:"married_name" json:"married_name,omitempty"`
-	Gender      *string    `json:"gender,omitempty"`
-	Birthdate   *time.Time `json:"birthdate,omitempty"`
-	Mail        *string    `json:"mail"`
-	Phone       *string    `json:"phone,omitempty"`
-	Mobile      *string    `json:"mobile,omitempty"`
-	Address     Address    `json:"address,omitempty"`
-	AddressID   uint       `json:"-" db:"address_id"`
+	ID           uint       `gorm:"primary_key" json:"id"`
+	Firstname    string     `sql:"not null" json:"firstname"`
+	Surname      string     `json:"surname"`
+	MarriedName  *string    `db:"married_name" json:"married_name,omitempty"`
+	Gender       *string    `json:"gender,omitempty"`
+	Birthdate    *time.Time `json:"birthdate,omitempty"`
+	BirthDept    *string    `json:"birthdept"`
+	BirthCity    *string    `json:"birthcity"`
+	BirthCountry *string    `json:"birthcountry"`
+	Mail         *string    `json:"mail"`
+	Phone        *string    `json:"phone,omitempty"`
+	Mobile       *string    `json:"mobile,omitempty"`
+	Address      Address    `json:"address,omitempty"`
+	AddressID    uint       `json:"-" db:"address_id"`
 
 	Vote    string `json:"vote"`
 	Support string `json:"support"`
