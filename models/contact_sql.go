@@ -60,7 +60,7 @@ func (s *ContactSQL) First(args ContactArgs) (*Contact, error) {
 func (s *ContactSQL) Find(args ContactArgs) ([]Contact, error) {
 	var contacts []Contact
 
-	err := s.DB.Where("group_id = ?", args.Contact.GroupID).Find(&contacts).Error
+	err := s.DB.Where("group_id = ?", args.Contact.GroupID).Limit(20000).Find(&contacts).Error
 	if err != nil {
 		return nil, err
 	}
