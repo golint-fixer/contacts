@@ -35,6 +35,7 @@ type Contact struct {
 	MarriedName  *string    `db:"married_name" json:"married_name,omitempty"`
 	Gender       *string    `json:"gender,omitempty"`
 	Birthdate    *time.Time `json:"birthdate,omitempty"`
+	AgeCategory	 uint    		`json:"age_category"`
 	BirthDept    *string    `json:"birthdept"`
 	BirthCity    *string    `json:"birthcity"`
 	BirthCountry *string    `json:"birthcountry"`
