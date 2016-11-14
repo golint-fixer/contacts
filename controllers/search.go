@@ -89,7 +89,7 @@ func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) er
 // search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
 // exemple de requête elastic exécutée:
 /*
-	{
+{
   "_source": {
     "excludes": [],
     "includes": [
@@ -107,21 +107,52 @@ func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) er
         {
           "multi_match": {
             "operator": "and",
-            "query": "bap",
+            "query": "rue des menuts",
             "tie_breaker": 0,
             "type": "cross_fields",
             "fields": [
               "surname",
-              "firstname"
+              "firstname",
+              "city",
+              "street"
             ]
           }
         },
         {
           "term": {
-            "group_id": "2"
+            "group_id": "1"
           }
         }
       ]
+    }
+  },
+  "aggs": {
+    "agg_gender": {
+      "terms": {
+        "field": "gender"
+      }
+    },
+    "agg_pollingstation": {
+      "terms": {
+        "field": "address.PollingStation"
+      }
+    },
+    "agg_birthdate": {
+      "date_histogram": {
+        "field": "birthdate",
+        "interval": "year"
+      }
+    },
+    "agg_lastChange": {
+      "date_histogram": {
+        "field": "lastchange",
+        "interval": "week"
+      }
+    },
+    "agg_agecategory": {
+      "terms": {
+        "field": "age_category"
+      }
     }
   }
 }
@@ -198,18 +229,28 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		size_requete = 1000
 	}
 
+	//aggregation pour KPI
+
+	aggreg_kpi := elastic.NewTermsAggregation().Field("gender")
+	//subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege)
+	//aggreg_kpi = aggreg_kpi.SubAggregation("result_subaggreg", subaggreg_unique)
+
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&bq).
 		Size(size_requete).
+		Aggregation("result_aggreg", aggreg_kpi).
 		Sort("surname", true).
 		Do()
 	if err != nil {
 		logs.Critical(err)
 		return err
 	}
+	logs.Debug(bq.Query)
+	logs.Debug(bq.Source())
 
+	// traitements des hits --------------------------------
 	if searchResult.Hits != nil {
 		for _, hit := range searchResult.Hits.Hits {
 			var c models.Contact
@@ -223,6 +264,62 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		}
 	} else {
 		reply.Contacts = nil
+	}
+//traitements des aggs - KPI ---------------------------
+
+	agg, found := searchResult.Aggregations.Terms("result_aggreg")
+	if !found {
+		logs.Debug("we sould have a terms aggregation called %q", "aggreg_lattitude")
+	}
+	if searchResult.Aggregations != nil {
+		for _, bucket := range agg.Buckets {
+			// subaggreg_unique, found := bucket.TopHits("result_subaggreg")
+			// if found {
+			// 	// pour chaque addresse aggrégée
+			// 	var cs models.AddressAggReply
+			// 	for _, addresse := range subaggreg_unique.Hits.Hits {
+			// 		//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+			// 		var c models.Contact
+			// 		err := json.Unmarshal(*addresse.Source, &c)
+			// 		if err != nil {
+			// 			logs.Error(err)
+			// 			return err
+			// 		}
+			// 		cs.Contacts = append(cs.Contacts, c)
+			// 	}
+
+			// type KpiReplies struct {
+			// 	KpiReplies []KpiReply
+			// }
+			//
+			// type KpiReply struct {
+			// 	Key string
+			// 	Doc_count int64
+			// }
+				var toto models.KpiReply
+				var tata models.KpiReplies
+				//tata:=models.KpiReply[]
+
+				logs.Debug(toto)
+				//logs.Debug(reply.Kpi[0])
+				//temp:=reply.Kpi[0]
+				toto.Key=bucket.Key.(string)
+				toto.Doc_count=bucket.DocCount
+				//reply.Kpi[0] = models.Search.
+
+				tata.KpiReplies=append(tata.KpiReplies, toto)
+				//var titi models.SearchReply
+				reply.Kpi=append(reply.Kpi, tata)
+				logs.Debug("reply.Kpi2")
+				logs.Debug(reply.Kpi)
+				//var cs models.AddressAggReply
+					//var c models.Contact
+					//cs.Contacts = append(cs.Contacts, c)
+
+				//reply.kpi.KpiReplies = append(KpiReplies, toto)
+		}
+	} else {
+		//reply.Kpi = []
 	}
 
 	return nil
