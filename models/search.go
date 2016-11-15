@@ -19,7 +19,7 @@ type KpiReply struct {
 	Doc_count int64
 }
 
-type KpiReplies struct {
+type KpiAggs struct {
 	KpiReplies []KpiReply
 }
 
@@ -30,7 +30,7 @@ type SearchReply struct {
 	Facts       []Fact
 	IDs         []uint
 	AddressAggs []AddressAggReply
-	Kpi 	      []KpiReplies
+	Kpi 	    []KpiAggs
 }
 
 type AddressAggReply struct {

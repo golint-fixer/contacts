@@ -16,3 +16,7 @@ type Contact struct {
 type AddressAggs struct {
 	AddressAggs []models.AddressAggReply `json:"AddressAggs"`
 }
+
+type Kpi struct {
+	Kpi []models.KpiAggs `json:"kpi"`
+}
