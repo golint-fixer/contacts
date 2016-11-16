@@ -215,46 +215,39 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
 
 	if len(args.Search.Fields)>3{
-		//gender
+		//gender ------------------------------------------------------------
 		var gender_filter = args.Search.Fields[3]
 		if gender_filter != ""{
 			bq = bq.Must(elastic.NewTermQuery("gender", gender_filter))
 		}
-		//pollingstation
+		//pollingstation ------------------------------------------------------------
 		var pollingstation_filter = args.Search.Fields[4]
 		if pollingstation_filter != ""{
-
-			//var tab = strings.Replace(pollingstation_filter, "/",",",-1)
-
-			var tmp models.Search
-			tmp.Fields = strings.Split(pollingstation_filter, "/")
-
-			//tempTab = strings.Split(pollingstation_filter, "/")
-			logs.Debug(tmp)
-			logs.Debug(tmp.Fields)
-			files := []string{"Test.conf", "util.go", "Makefile", "misc.go", "main.go"}
-			logs.Debug(files)
-			//Fields  []string
-
-			//for _, unit := range tab {
-				//pollingstation_filter +=
-			//}
-			type Abser interface {
-				//Abs() []string
+			//affectation des différentes polling station dans un tableau de string
+			var dataSlice_pollingstation []string = strings.Split(pollingstation_filter, "/")
+			//création d'un array d'interface
+			var interfaceSlice_pollingstation []interface{} = make([]interface{}, len(dataSlice_pollingstation))
+			//affectation du tableau de sting au tab d'interface
+			for i, d := range dataSlice_pollingstation {
+			    interfaceSlice_pollingstation[i] = d
 			}
-
-			//var a []Abser
-			//a = strings.Split(pollingstation_filter, "/")
-
-			var dataSlice []string = strings.Split(pollingstation_filter, "/")
-			var interfaceSlice []interface{} = make([]interface{}, len(dataSlice))
-			for i, d := range dataSlice {
-			    interfaceSlice[i] = d
-			}
-			bq = bq.Must(elastic.NewTermsQuery("address.PollingStation", interfaceSlice...))
+			//injection de la query
+			bq = bq.Must(elastic.NewTermsQuery("address.PollingStation", interfaceSlice_pollingstation...))
 		}
-		//age_category
-		//var agecategory := args.Search.Fields[5]
+		//age_category & birthdate ----------------------------------------------------
+		var agecategory = args.Search.Fields[5]
+		if agecategory != ""{
+			//affectation des différentes polling station dans un tableau de string
+			var dataSlice_agecategory []string = strings.Split(agecategory, "/")
+			//création d'un array d'interface
+			var interfaceSlice_agecategory []interface{} = make([]interface{}, len(dataSlice_agecategory))
+			//affectation du tableau de sting au tab d'interface
+			for i, d := range dataSlice_agecategory {
+			    interfaceSlice_agecategory[i] = d
+			}
+			//injection de la query
+			bq = bq.Must(elastic.NewTermsQuery("age_category", interfaceSlice_agecategory...))
+		}
 	}
 
 	// positionner le nombre de résultats attendus : nb de contacts
@@ -272,24 +265,33 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		size_requete = 1000
 	}
 
-	//aggregation pour KPI
-
-	//aggreg_kpi := elastic.NewTermsAggregation().Field("gender")
-	//subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_nb_address_aggrege)
-	//aggreg_kpi = aggreg_kpi.SubAggregation("result_subaggreg", subaggreg_unique)
-
+	// sort --------------------------------------
+	var sort string
+	var asc bool
+	logs.Debug("len(args.Search.Fields)")
+	logs.Debug(len(args.Search.Fields))
+	logs.Debug(args.Search.Fields[6])
+	//if len(args.Search.Fields) > 6 && (args.Search.Fields[6]=="surname"||args.Search.Fields[6]=="address.street"){
+	sort = args.Search.Fields[6]
+	if asc, err := strconv.ParseBool(args.Search.Fields[7]); err == nil {
+		fmt.Printf("%T, %v\n", asc, asc)
+	}
+	//} else{
+	//	sort = "surname"
+	//}
+	logs.Debug(sort)
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&bq).
 		Size(size_requete).
-		Sort("surname", true).
+		Sort(sort, asc).
 		Do()
 	if err != nil {
 		logs.Critical(err)
 		return err
 	}
-	logs.Debug(bq.Query)
+
 	logs.Debug(bq.Source())
 
 	// traitements des hits --------------------------------
