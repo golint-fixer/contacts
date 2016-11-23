@@ -227,7 +227,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 	// si recherche avancée cad plus de 3 paramêtres dans Fields
 	if len(args.Search.Fields)>3{
 
-		//gender ------------------------------------------------------------
+		//--------------------------------gender ------------------------------------------------------------
 
 		var gender_filter = args.Search.Fields[4]
 		if gender_filter != ""{
@@ -243,7 +243,8 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			//injection de la query
 			*bq = bq.Must(elastic.NewTermsQuery("gender", interfaceSlice_gender...))
 		}
-		//pollingstation ------------------------------------------------------------
+
+		//--------------------------------pollingstation ------------------------------------------------------------
 
 		var pollingstation_filter = args.Search.Fields[5]
 		if pollingstation_filter != ""{
@@ -252,18 +253,32 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			var index = SliceIndex(len(dataSlice_pollingstation), func(i int) bool { return dataSlice_pollingstation[i] == "missing" })
 			if index > -1 {
 				dataSlice_pollingstation = append(dataSlice_pollingstation[:index], dataSlice_pollingstation[index+1:]...)
-				dataSlice_pollingstation = append(dataSlice_pollingstation,"null")
+				dataSlice_pollingstation = append(dataSlice_pollingstation,"")
+				//création d'un array d'interface
+				var interfaceSlice_pollingstation []interface{} = make([]interface{}, len(dataSlice_pollingstation))
+				//affectation du tableau de sting au tab d'interface
+				for i, d := range dataSlice_pollingstation {
+				    interfaceSlice_pollingstation[i] = d
+				}
+				var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
+					bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("address.PollingStation")))
+					bq_child1 = bq_child1.Should(elastic.NewTermsQuery("address.PollingStation", interfaceSlice_pollingstation...))
+					bq_child1 = bq_child1.MinimumShouldMatch("1")
+				*bq = bq.Must(bq_child1)
+			}else{
+				//création d'un array d'interface
+				var interfaceSlice_pollingstation []interface{} = make([]interface{}, len(dataSlice_pollingstation))
+				//affectation du tableau de sting au tab d'interface
+				for i, d := range dataSlice_pollingstation {
+				    interfaceSlice_pollingstation[i] = d
+				}
+				//injection de la query
+				*bq = bq.Must(elastic.NewTermsQuery("address.PollingStation", interfaceSlice_pollingstation...))
 			}
-			//création d'un array d'interface
-			var interfaceSlice_pollingstation []interface{} = make([]interface{}, len(dataSlice_pollingstation))
-			//affectation du tableau de sting au tab d'interface
-			for i, d := range dataSlice_pollingstation {
-			    interfaceSlice_pollingstation[i] = d
-			}
-			//injection de la query
-			*bq = bq.Must(elastic.NewTermsQuery("address.PollingStation", interfaceSlice_pollingstation...))
 		}
-		//age_category & birthdate ----------------------------------------------------
+
+		//-------------------------age_category & birthdate ----------------------------------------------------
+
 		logs.Debug("args.Search.Fields[6]:"+args.Search.Fields[6])
 		var agecategory = args.Search.Fields[6]
 		if agecategory != ""{
@@ -592,7 +607,11 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 		// ---- stockage réponses pour pollingstation_aggreg -----------------------
 			for _, bucket := range pollingstation_agg.Buckets {
 				var kpiAtom models.KpiReply
-				kpiAtom.Key=bucket.Key.(string)
+				if (bucket.Key.(string)==""){
+					kpiAtom.Key="missing"
+				}else{
+					kpiAtom.Key=bucket.Key.(string)
+				}
 				kpiAtom.Doc_count=bucket.DocCount
 				tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 			}
