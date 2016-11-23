@@ -158,6 +158,16 @@ func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) er
 }
 */
 
+
+func SliceIndex(limit int, predicate func(i int) bool) int {
+    for i := 0; i < limit; i++ {
+        if predicate(i) {
+            return i
+        }
+    }
+    return -1
+}
+
 func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 	//query au cas où il y'a quelque chose dans la barre de recherche
 	Query := elastic.NewMultiMatchQuery(args.Search.Query)//A remplacer par fields[] plus tard
@@ -223,6 +233,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		if gender_filter != ""{
 			//bq = bq.Must(elastic.NewTermQuery("gender", gender_filter))
 			var dataSlice_gender []string = strings.Split(gender_filter, "/")
+
 			//création d'un array d'interface
 			var interfaceSlice_gender []interface{} = make([]interface{}, len(dataSlice_gender))
 			//affectation du tableau de sting au tab d'interface
@@ -238,6 +249,11 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		if pollingstation_filter != ""{
 			//affectation des différentes polling station dans un tableau de string
 			var dataSlice_pollingstation []string = strings.Split(pollingstation_filter, "/")
+			var index = SliceIndex(len(dataSlice_pollingstation), func(i int) bool { return dataSlice_pollingstation[i] == "missing" })
+			if index > -1 {
+				dataSlice_pollingstation = append(dataSlice_pollingstation[:index], dataSlice_pollingstation[index+1:]...)
+				dataSlice_pollingstation = append(dataSlice_pollingstation,"null")
+			}
 			//création d'un array d'interface
 			var interfaceSlice_pollingstation []interface{} = make([]interface{}, len(dataSlice_pollingstation))
 			//affectation du tableau de sting au tab d'interface
@@ -254,6 +270,20 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 			//affectation des différentes catégories d'âge dans un tableau de string
 			var dataSlice_agecategory []string = strings.Split(agecategory, "/")
+			// -------- GESTION DE LA GATEGORIE 0 --------------------------------------------
+					// on extrait la valeur 0 du slice si elle existe
+					var index = SliceIndex(len(dataSlice_agecategory), func(i int) bool { return dataSlice_agecategory[i] == "0" })
+					if  index > -1 {
+						dataSlice_agecategory = append(dataSlice_agecategory[:index], dataSlice_agecategory[index+1:]...)
+						logs.Debug("enter CATEGORY 0")
+						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
+							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("birthdate")))
+							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("age_category")))
+							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewTermFilter("age_category", "0")))
+							bq_child1 = bq_child1.MinimumShouldMatch("2")
+						*bq = bq.Should(bq_child1)
+					}
+			// -------- FIN GESTION DE LA GATEGORIE 0 --------------------------------------------
 			//création d'un array d'interface
 			var interfaceSlice_agecategory []interface{} = make([]interface{}, len(dataSlice_agecategory))
 
@@ -264,22 +294,22 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 					// injection d'une requête Should pour chaque tranche de birthdate à retenir
 					//bq = bq.Should(elastic.NewRangeQuery("birthdate").From("1980-12-01").To("1981-04-01"))
 					switch category {
-					case "0":
+					case "1":
       			*bq = bq.Should(elastic.NewRangeQuery("birthdate").Gte("now-18y/d"))
 						interfaceSlice_agecategory[i] = category
-      		case "1":
+      		case "2":
       			*bq = bq.Should(elastic.NewRangeQuery("birthdate").Gte("now-25y/d").Lte("now-18y/d"))
 						interfaceSlice_agecategory[i] = category
-      		case "2":
+      		case "3":
       			*bq = bq.Should(elastic.NewRangeQuery("birthdate").Gte("now-35y/d").Lte("now-25y/d"))
 						interfaceSlice_agecategory[i] = category
-      		case "3":
+      		case "4":
       			*bq = bq.Should(elastic.NewRangeQuery("birthdate").Gte("now-50y/d").Lte("now-35y/d"))
 						interfaceSlice_agecategory[i] = category
-      		case "4":
+      		case "5":
       			*bq = bq.Should(elastic.NewRangeQuery("birthdate").Gte("now-65y/d").Lte("now-50y/d"))
 						interfaceSlice_agecategory[i] = category
-      		case "5":
+      		case "6":
       			*bq = bq.Should(elastic.NewRangeQuery("birthdate").Lte("now-65y/d"))
 						interfaceSlice_agecategory[i] = category
 					default:
@@ -289,8 +319,8 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 					}
 			}
 			//injection de la query pour catégorie d'âge
-				*bq = bq.Should(elastic.NewTermsQuery("age_category", interfaceSlice_agecategory...))
-				*bq = bq.MinimumShouldMatch("1")
+			*bq = bq.Should(elastic.NewTermsQuery("age_category", interfaceSlice_agecategory...))
+			*bq = bq.MinimumShouldMatch("1")
 		}
 	}
  return nil
@@ -302,7 +332,6 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 
 	var bq elastic.BoolQuery
-
 	err := BuildQuery(args,&bq)
 	if err != nil {
 		logs.Error(err)
@@ -372,6 +401,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		Sort(sort, asc).
 		Do()
 
+		logs.Debug(bq.Query)
+		logs.Debug(bq.Source())
 	if err != nil {
 		logs.Critical(err)
 		return err
@@ -422,23 +453,21 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	//aggregation pour KPI
 
 	aggreg_kpi_gender := elastic.NewTermsAggregation().Field("gender")
-	aggreg_kpi_pollingstation := elastic.NewTermsAggregation().Field("address.PollingStation")
+	aggreg_kpi_gender_missing := elastic.NewMissingAggregation().Field("gender")
+
+	aggreg_kpi_pollingstation := elastic.NewTermsAggregation().Field("address.PollingStation").Size(500)
+	aggreg_kpi_pollingstation_missing := elastic.NewMissingAggregation().Field("address.PollingStation")
+
 	aggreg_kpi_agecategory := elastic.NewTermsAggregation().Field("age_category")
-	//aggreg_kpi_birthdate := elastic.NewDateHistogramAggregation().Field("birthdate").Interval("year")
 	aggreg_kpi_lastchange := elastic.NewDateHistogramAggregation().Field("lastchange").Interval("week")
+	//aggreg_kpi_birthdate := elastic.NewDateHistogramAggregation().Field("birthdate").Interval("year")
 
-	var aggreg_kpi_birthdate [6]elastic.DateRangeAggregation
-	for index_agecat := 0; index_agecat < 6; index_agecat++ {
-		aggreg_kpi_birthdate[index_agecat]=elastic.NewDateRangeAggregation().Field("birthdate").Between(refInterval[index_agecat+1],refInterval[index_agecat])
+	//var aggreg_kpi_birthdate [7]elastic.DateRangeAggregation
+	var aggreg_kpi_birthdate [7]interface{}
+	aggreg_kpi_birthdate[0]=elastic.NewMissingAggregation().Field("birthdate")
+	for index_agecat := 1; index_agecat < 7; index_agecat++ {
+		aggreg_kpi_birthdate[index_agecat]=elastic.NewDateRangeAggregation().Field("birthdate").Between(refInterval[index_agecat],refInterval[index_agecat-1])
 	}
-
-	// logs.Debug(aggreg_kpi_birthdate)
-	// aggreg_kpi_birthdate_moinsde18 := elastic.NewDateRangeAggregation().Field("birthdate").Between("now-18y/d", "now/d")
-	// aggreg_kpi_birthdate_18_25 := elastic.NewDateRangeAggregation().Field("birthdate").Between("now-25y/d", "now-18y/d")
-	// aggreg_kpi_birthdate_25_35 := elastic.NewDateRangeAggregation().Field("birthdate").Between("now-35y/d", "now-25y/d")
-	// aggreg_kpi_birthdate_35_50 := elastic.NewDateRangeAggregation().Field("birthdate").Between("now-50y/d", "now-35y/d")
-	// aggreg_kpi_birthdate_50_65 := elastic.NewDateRangeAggregation().Field("birthdate").Between("now-65y/d", "now-50y/d")
-	// aggreg_kpi_birthdate_plusde65 := elastic.NewDateRangeAggregation().Field("birthdate").Between("now-150y/d", "now-65y/d")
 
 	searchResult, err := s.Client.Search().
 		Index("contacts").
@@ -446,22 +475,19 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 		Query(&bq).
 		Size(0).
 		Aggregation("gender_aggreg", aggreg_kpi_gender).
+		Aggregation("gender_missing_aggreg", aggreg_kpi_gender_missing).
 		Aggregation("pollingstation_aggreg", aggreg_kpi_pollingstation).
+		Aggregation("pollingstation_missing_aggreg", aggreg_kpi_pollingstation_missing).
 		Aggregation("agecategory_aggreg", aggreg_kpi_agecategory).
 		//Aggregation("birthdate_aggreg", aggreg_kpi_birthdate).
 		Aggregation("lastchange_aggreg", aggreg_kpi_lastchange).
-		Aggregation("0_aggreg", aggreg_kpi_birthdate[0]).
-		Aggregation("1_aggreg", aggreg_kpi_birthdate[1]).
-		Aggregation("2_aggreg", aggreg_kpi_birthdate[2]).
-		Aggregation("3_aggreg", aggreg_kpi_birthdate[3]).
-		Aggregation("4_aggreg", aggreg_kpi_birthdate[4]).
-		Aggregation("5_aggreg", aggreg_kpi_birthdate[5]).
-		// Aggregation("18_aggreg", aggreg_kpi_birthdate_moinsde18).
-		// Aggregation("18_25_aggreg", aggreg_kpi_birthdate_18_25).
-		// Aggregation("25_35_aggreg", aggreg_kpi_birthdate_25_35).
-		// Aggregation("35_50_aggreg", aggreg_kpi_birthdate_35_50).
-		// Aggregation("50_65_aggreg", aggreg_kpi_birthdate_50_65).
-		// Aggregation("65_aggreg", aggreg_kpi_birthdate_plusde65).
+		Aggregation("0_aggreg", aggreg_kpi_birthdate[0].(elastic.MissingAggregation)).
+		Aggregation("1_aggreg", aggreg_kpi_birthdate[1].(elastic.DateRangeAggregation)).
+		Aggregation("2_aggreg", aggreg_kpi_birthdate[2].(elastic.DateRangeAggregation)).
+		Aggregation("3_aggreg", aggreg_kpi_birthdate[3].(elastic.DateRangeAggregation)).
+		Aggregation("4_aggreg", aggreg_kpi_birthdate[4].(elastic.DateRangeAggregation)).
+		Aggregation("5_aggreg", aggreg_kpi_birthdate[5].(elastic.DateRangeAggregation)).
+		Aggregation("6_aggreg", aggreg_kpi_birthdate[6].(elastic.DateRangeAggregation)).
 		Do()
 
 	if err != nil {
@@ -470,34 +496,35 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	}
 
 	gender_agg, found := searchResult.Aggregations.Terms("gender_aggreg")
+	gender_missing_agg, found1 := searchResult.Aggregations.Missing("gender_missing_aggreg")
+
 	pollingstation_agg, found2 := searchResult.Aggregations.Terms("pollingstation_aggreg")
+	pollingstation_missing_agg, found2bis := searchResult.Aggregations.Missing("pollingstation_missing_aggreg")
+
 	agecategory_agg, found3 := searchResult.Aggregations.Terms("agecategory_aggreg")
-	//birthdate_agg, found4 := searchResult.Aggregations.DateHistogram("birthdate_aggreg")
 	lastchange_agg, found5 := searchResult.Aggregations.DateHistogram("lastchange_aggreg")
+	//birthdate_agg, found4 := searchResult.Aggregations.DateHistogram("birthdate_aggreg")
 
-	// var a_agg [6]elastic.AggregationBucketRangeItems
-	// for index_agecat := 0; index_agecat < 6; index_agecat++ {
-	// 	var mot = strconv.Itoa(index_agecat)+"_aggreg"
-	// 	logs.Debug(mot)
-	// 	a_agg[index_agecat], found = *searchResult.Aggregations.DateRange(mot)
-	// 	if !found {
-	// 			logs.Info("we sould have a terms aggregation called %q", mot)
-	// 	}
-	// }
-	// logs.Debug(a_agg)
 
-	a0_agg, found6  := searchResult.Aggregations.DateRange("0_aggreg")
+	a0_agg, found6  := searchResult.Aggregations.Missing("0_aggreg")
 	a1_agg, found7  := searchResult.Aggregations.DateRange("1_aggreg")
 	a2_agg, found8  := searchResult.Aggregations.DateRange("2_aggreg")
 	a3_agg, found9  := searchResult.Aggregations.DateRange("3_aggreg")
 	a4_agg, found10 := searchResult.Aggregations.DateRange("4_aggreg")
 	a5_agg, found11 := searchResult.Aggregations.DateRange("5_aggreg")
+	a6_agg, found12 := searchResult.Aggregations.DateRange("6_aggreg")
 
 	if !found {
 		logs.Debug("we sould have a terms aggregation called %q", "gender_aggreg")
 	}
+	if !found1 {
+		logs.Debug("we sould have a terms aggregation called %q", "gender_missing_aggreg")
+	}
 	if !found2 {
 		logs.Debug("we sould have a terms aggregation called %q", "pollingstation_aggreg")
+	}
+	if !found2bis {
+		logs.Debug("we sould have a terms aggregation called %q", "pollingstation_missing_aggreg")
 	}
 	if !found3 {
 		logs.Debug("we sould have a terms aggregation called %q", "agecategory_aggreg")
@@ -526,37 +553,59 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	if !found11 {
 		logs.Debug("we sould have a terms aggregation called %q", "5_aggreg")
 	}
+	if !found12 {
+		logs.Debug("we sould have a terms aggregation called %q", "6_aggreg")
+	}
 
 	if searchResult.Aggregations != nil {
 		var tab_kpiAtom models.KpiAggs
+
 		// ---- stockage nombre de résultats de la requête ----------------------
-		if searchResult.Hits != nil {
+			if searchResult.Hits != nil {
+				var kpiAtom models.KpiReply
+				kpiAtom.Key="total"
+				kpiAtom.Doc_count=searchResult.Hits.TotalHits
+				tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
+				reply.Kpi=append(reply.Kpi, tab_kpiAtom)
+				tab_kpiAtom = models.KpiAggs{}
+			}
+
+
+		// ---- stockage réponses pour gender_aggreg ----------------------
+			for _, bucket := range gender_agg.Buckets {
+				var kpiAtom models.KpiReply
+				kpiAtom.Key=bucket.Key.(string)
+				kpiAtom.Doc_count=bucket.DocCount
+				tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
+			}
+		//---- gestion du missing gender --------
 			var kpiAtom models.KpiReply
-			kpiAtom.Key="total"
-			kpiAtom.Doc_count=searchResult.Hits.TotalHits
-			tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
+			kpiAtom.Key="missing"
+			kpiAtom.Doc_count=gender_missing_agg.DocCount
+			if (gender_missing_agg.DocCount>0){
+				tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
+			}
+		// ---------------------------------------
 			reply.Kpi=append(reply.Kpi, tab_kpiAtom)
 			tab_kpiAtom = models.KpiAggs{}
-		}
-		// ---- stockage réponses pour gender_aggreg ----------------------
-		for _, bucket := range gender_agg.Buckets {
-			var kpiAtom models.KpiReply
-			kpiAtom.Key=bucket.Key.(string)
-			kpiAtom.Doc_count=bucket.DocCount
-			tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
-		}
-		reply.Kpi=append(reply.Kpi, tab_kpiAtom)
-		tab_kpiAtom = models.KpiAggs{}
 
 		// ---- stockage réponses pour pollingstation_aggreg -----------------------
-		for _, bucket := range pollingstation_agg.Buckets {
-			var kpiAtom models.KpiReply
-			kpiAtom.Key=bucket.Key.(string)
-			kpiAtom.Doc_count=bucket.DocCount
-			tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
-		}
-		reply.Kpi=append(reply.Kpi, tab_kpiAtom)
-		tab_kpiAtom = models.KpiAggs{}
+			for _, bucket := range pollingstation_agg.Buckets {
+				var kpiAtom models.KpiReply
+				kpiAtom.Key=bucket.Key.(string)
+				kpiAtom.Doc_count=bucket.DocCount
+				tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
+			}
+		//---- gestion du missing pollingstation --------
+			var kpiAtom2 models.KpiReply
+			kpiAtom2.Key="missing"
+			kpiAtom2.Doc_count=pollingstation_missing_agg.DocCount
+			if(pollingstation_missing_agg.DocCount>0){
+				tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom2)
+			}
+		// ---------------------------------------
+			reply.Kpi=append(reply.Kpi, tab_kpiAtom)
+			tab_kpiAtom = models.KpiAggs{}
 
 		// ---- stockage réponses pour agecategory_aggreg -----------------------
 
@@ -571,24 +620,23 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 
 		// ---- stockage réponses pour agecategory_aggreg -----------------------
 		// on récupère les données issus du champ age category dans un tab temporaire
-		var tab_TEMP [6]int64
+		var tab_TEMP [7]int64
 		for _, bucket := range agecategory_agg.Buckets {
 			tab_TEMP[int(bucket.Key.(float64))]=bucket.DocCount
 		}
-
+		logs.Debug(tab_TEMP)
 		// on aggrege les données pour chaque catégorie d'âge (count aggBirthdate par tranche + count age category)
-		for index_agecategory := 0; index_agecategory < 6; index_agecategory++ {
+		for index_agecategory := 0; index_agecategory < 7; index_agecategory++ {
 
 			switch index_agecategory {
 			case 0:
-				for _, bucket := range a0_agg.Buckets {
-					var kpiAtom models.KpiReply
-					kpiAtom.Key="0"
+					var kpiAtom2 models.KpiReply
+					kpiAtom2.Key="0"
 					// somme de count de la catégorie d'âge
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom2.Doc_count=a0_agg.DocCount+tab_TEMP[index_agecategory]
 					//on ajoute dans le tableau KpiReplies, la struct de résultats
-					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
-				}
+					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom2)
+
 			case 1:
 				for _, bucket := range a1_agg.Buckets {
 					var kpiAtom models.KpiReply
@@ -624,6 +672,13 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
+			case 6:
+				for _, bucket := range a6_agg.Buckets {
+					var kpiAtom models.KpiReply
+					kpiAtom.Key="6"
+					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
+				}
 			default:
 				logs.Critical("problem ")
 				err := errors.New("wrong age_category parameter")
@@ -631,6 +686,7 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 			}
 		}
 		reply.Kpi=append(reply.Kpi, tab_kpiAtom)
+		logs.Debug(tab_kpiAtom)
 		tab_kpiAtom = models.KpiAggs{}
 
 		// // ---- stockage réponses pour birthdate_aggreg -----------------------
