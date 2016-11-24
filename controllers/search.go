@@ -279,7 +279,6 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 		//-------------------------age_category & birthdate ----------------------------------------------------
 
-		logs.Debug("args.Search.Fields[6]:"+args.Search.Fields[6])
 		var agecategory = args.Search.Fields[6]
 		if agecategory != ""{
 
@@ -290,7 +289,6 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 					var index = SliceIndex(len(dataSlice_agecategory), func(i int) bool { return dataSlice_agecategory[i] == "0" })
 					if  index > -1 {
 						dataSlice_agecategory = append(dataSlice_agecategory[:index], dataSlice_agecategory[index+1:]...)
-						logs.Debug("enter CATEGORY 0")
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
 							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("birthdate")))
 							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("age_category")))
@@ -343,7 +341,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("SearchContacts - search.go")
-	logs.Debug("args.Search.Query:%s", args.Search.Query)
+	logs.Debug.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 
 	var bq elastic.BoolQuery
@@ -416,8 +414,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		Sort(sort, asc).
 		Do()
 
-		logs.Debug(bq.Query)
-		logs.Debug(bq.Source())
+		//logs.Debug(bq.Query)
+		//logs.Debug(bq.Source())
 	if err != nil {
 		logs.Critical(err)
 		return err
@@ -642,8 +640,11 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 		var tab_TEMP [7]int64
 		for _, bucket := range agecategory_agg.Buckets {
 			tab_TEMP[int(bucket.Key.(float64))]=bucket.DocCount
+			//logs.Debug("---index_agecategory---")
+			//logs.Debug(bucket.Key.(float64))
+			//logs.Debug(bucket.DocCount)
 		}
-		logs.Debug(tab_TEMP)
+		//logs.Debug(tab_TEMP)
 		// on aggrege les données pour chaque catégorie d'âge (count aggBirthdate par tranche + count age category)
 		for index_agecategory := 0; index_agecategory < 7; index_agecategory++ {
 
@@ -652,7 +653,8 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 					var kpiAtom2 models.KpiReply
 					kpiAtom2.Key="0"
 					// somme de count de la catégorie d'âge
-					kpiAtom2.Doc_count=a0_agg.DocCount+tab_TEMP[index_agecategory]
+					//cumul missing + category_age = 0
+					kpiAtom2.Doc_count=a0_agg.DocCount
 					//on ajoute dans le tableau KpiReplies, la struct de résultats
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom2)
 
@@ -705,7 +707,6 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 			}
 		}
 		reply.Kpi=append(reply.Kpi, tab_kpiAtom)
-		logs.Debug(tab_kpiAtom)
 		tab_kpiAtom = models.KpiAggs{}
 
 		// // ---- stockage réponses pour birthdate_aggreg -----------------------
