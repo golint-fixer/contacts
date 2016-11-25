@@ -341,7 +341,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("SearchContacts - search.go")
-	logs.Debug.Debug("args.Search.Query:%s", args.Search.Query)
+	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 
 	var bq elastic.BoolQuery
