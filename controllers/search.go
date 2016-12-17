@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/quorumsco/contacts/models"
 	"github.com/quorumsco/elastic"
@@ -250,6 +251,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		if pollingstation_filter != ""{
 			//affectation des différentes polling station dans un tableau de string
 			var dataSlice_pollingstation []string = strings.Split(pollingstation_filter, "/")
+			//vérifie si l'on passé comme argument le mot clé missing. Si c'est le cas (index>-1), alors la requête bq.must n'est pas la même
 			var index = SliceIndex(len(dataSlice_pollingstation), func(i int) bool { return dataSlice_pollingstation[i] == "missing" })
 			if index > -1 {
 				dataSlice_pollingstation = append(dataSlice_pollingstation[:index], dataSlice_pollingstation[index+1:]...)
@@ -274,6 +276,15 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 				}
 				//injection de la query
 				*bq = bq.Must(elastic.NewTermsQuery("address.PollingStation", interfaceSlice_pollingstation...))
+			}
+		}
+		//--------------------------------Forms ------------------------------------------------------------
+		// si la taille est supérieure à 9, c'est que l'on transmet des arguments de filtre de type FORM
+		if len(args.Search.Fields)>9{
+			err := BuildQueryForm(args,bq)
+			if err != nil {
+				logs.Error(err)
+				return err
 			}
 		}
 
@@ -336,8 +347,241 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			*bq = bq.MinimumShouldMatch("1")
 		}
 	}
+return nil
+}
+
+//--------------------------------Forms ------------------------------------------------------------
+
+/*
+type + form_id + form_ref_id + exist or not + value or range
+for Text -> interfaceSlice_form[]=["TEXT",123,true,666,"bénévole"]
+for Text -> interfaceSlice_form[]=["TEXT",123,false,666,"bénévole"]
+for Text -> interfaceSlice_form[]=["TEXT",123,true]
+for Text -> interfaceSlice_form[]=["TEXT",123,false]
+
+for Radio -> interfaceSlice_form[]=["RADIO",354,false]
+for Radio -> interfaceSlice_form[]=["RADIO",354,true]
+for Radio -> interfaceSlice_form[]=["RADIO",354,false,123]
+for Radio -> interfaceSlice_form[]=["RADIO",354,true,123]
+
+for Checkbox -> interfaceSlice_form[]=["CHECKBOX",123,true]
+for Checkbox -> interfaceSlice_form[]=["CHECKBOX",123,false]
+for Checkbox -> interfaceSlice_form[]=["CHECKBOX",123,true,333]
+for Checkbox -> interfaceSlice_form[]=["CHECKBOX",123,false,333]
+
+for Range -> interfaceSlice_form[]=["RANGE",123,true]
+for Range -> interfaceSlice_form[]=["RANGE",123,false]
+for Range -> interfaceSlice_form[]=["RANGE",123,true,645,"43"]
+for Range -> interfaceSlice_form[]=["RANGE",123,false,645,"43"]
+for Range -> interfaceSlice_form[]=["RANGE",123,true,645,"43","98"]
+for Range -> interfaceSlice_form[]=["RANGE",123,false,645,"43","98"]
+
+for Date -> interfaceSlice_form[]=["DATE",123,true]
+for Date -> interfaceSlice_form[]=["DATE",123,false]
+for Date -> interfaceSlice_form[]=["DATE",123,true,645,"23/12/2015"]
+for Date -> interfaceSlice_form[]=["DATE",123,false,645,"23/12/2015"]
+for Date -> interfaceSlice_form[]=["DATE",123,true,645,"23/12/2015","27/12/2016"]
+for Date -> interfaceSlice_form[]=["DATE",123,false,645,"23/12/2015","27/12/2016"]
+*/
+
+// method dedicated for the Forms part of the query
+func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
+			//pour chacun des forms où l'on souhaite faire une requête
+
+			logs.Debug("len(args.Search.Fields):")
+			logs.Debug(len(args.Search.Fields))
+			for i := 9; i < len(args.Search.Fields); i++ {
+					logs.Debug("i:")
+					logs.Debug(i)
+					var dataSlice_form []string = strings.Split(args.Search.Fields[i], "/")
+					//création d'un array d'interface
+					var interfaceSlice_form []interface{} = make([]interface{}, len(dataSlice_form))
+
+					//affectation du tableau de sting au tab d'interface
+					for j, d := range dataSlice_form {
+						switch j {
+
+						case 0:
+							interfaceSlice_form[j]=d
+
+						case 1,3:
+							temp,err := strconv.Atoi(d)
+							if err != nil {
+								logs.Error(err)
+								err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-1")
+								return err
+							}
+							interfaceSlice_form[j]=temp
+
+						case 2:
+							temp,err := strconv.ParseBool(d)
+							if err != nil {
+								logs.Error(err)
+								err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-2")
+								return err
+							}
+							interfaceSlice_form[j]=temp
+
+						case 4,5:
+							if dataSlice_form[0]=="TEXT"{
+								interfaceSlice_form[j]=d
+							}
+
+							if dataSlice_form[0]=="DATE"{
+								temp,err := time.Parse(time.RFC3339, d)
+								if err != nil {
+									logs.Error(err)
+									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-3")
+									return err
+								}
+								temp2 := int(temp.Unix())*1000
+								interfaceSlice_form[j]=temp2
+							}
+
+							if dataSlice_form[0]=="RANGE"{
+								temp,err := strconv.Atoi(d)
+								if err != nil {
+									logs.Error(err)
+									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-4")
+									return err
+								}
+								interfaceSlice_form[j]=temp
+							}
+
+						case 8:
+							if dataSlice_form[0]=="TEXT"{
+								interfaceSlice_form[j]=d
+							}
+							if dataSlice_form[0]=="DATE"{
+								temp,err := strconv.Atoi(d)
+								if err != nil {
+									logs.Error(err)
+									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-5")
+									return err
+								}
+								interfaceSlice_form[j]=temp
+							}
+							if dataSlice_form[0]=="RANGE"{
+								temp,err := strconv.Atoi(d)
+								if err != nil {
+									logs.Error(err)
+									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-6")
+									return err
+								}
+								interfaceSlice_form[j]=temp
+							}
+
+						default:
+							interfaceSlice_form[j]=d
+						}
+					}
+					// si la requête pour Form ne contient que trois éléménts, alors cela est soit une reqûete de présence ou d'absence de formdata (répondu, pas répondu)
+
+					if len(interfaceSlice_form)==3{
+						logs.Debug("3:")
+						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
+						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
+						//logs.Debug(interfaceSlice_form[2].(bool))
+						if (interfaceSlice_form[2].(bool)){
+							logs.Debug("true")
+							*bq = bq.Must(elastic.NewTermsQuery("formdatas.form_id", interfaceSlice_form[1]))
+						}else{
+							logs.Debug("false")
+							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+							bq_child2 = bq_child2.MustNot(elastic.NewTermQuery("formdatas.form_id", interfaceSlice_form[1]))
+							bq_child1 = bq_child1.Should(bq_child2)
+							bq_child1 = bq_child1.MinimumShouldMatch("1")
+							*bq = bq.Must(bq_child1)
+							//*bq = bq.Must(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+						}
+					}
+					// si la requête pour Form contient quatre éléménts, alors cela est soit une reqûete pour radio ou checkbow pour vérifier que le form_ref_id correspondant à une valeur est dans le formdata
+					if len(interfaceSlice_form)==4{
+						logs.Debug("4:")
+						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
+						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
+						if (interfaceSlice_form[2].(bool)){
+							logs.Debug("true")
+							*bq = bq.Must(elastic.NewTermsQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+						}else{
+							logs.Debug("false")
+							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+							bq_child2 = bq_child2.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+							bq_child1 = bq_child1.Should(bq_child2)
+							bq_child1 = bq_child1.MinimumShouldMatch("1")
+							*bq = bq.Must(bq_child1)
+						}
+					}
+
+					if len(interfaceSlice_form)==5{
+						logs.Debug("5:")
+						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
+						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
+						var bq_child3 elastic.BoolQuery = elastic.NewBoolQuery()
+						if(dataSlice_form[0]=="DATE"){
+							var interfaceTemp interface{}
+							interfaceTemp = interfaceSlice_form[4].(int)+86399000
+							if (interfaceSlice_form[2].(bool)){
+								bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Must(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
+								*bq = bq.Must(bq_child1)
+							}else{
+								logs.Debug("false")
+								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+								bq_child2 = bq_child2.MustNot(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
+								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Should(bq_child2)
+								bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Should(bq_child3)
+								bq_child1 = bq_child1.MinimumShouldMatch("1")
+								*bq = bq.Must(bq_child1)
+							}
+						}else{
+							if (interfaceSlice_form[2].(bool)){
+								logs.Debug("true")
+								bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
+								*bq = bq.Must(bq_child1)
+							}else{
+								logs.Debug("false")
+								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+								bq_child2 = bq_child2.MustNot(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
+								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Should(bq_child2)
+								bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Should(bq_child3)
+								bq_child1 = bq_child1.MinimumShouldMatch("1")
+								*bq = bq.Must(bq_child1)
+							}
+						}
+					}
+					if len(interfaceSlice_form)==6{
+							logs.Debug("6:")
+							var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
+							var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
+							var bq_child3 elastic.BoolQuery = elastic.NewBoolQuery()
+
+							if (interfaceSlice_form[2].(bool)){
+								bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Must(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceSlice_form[5]))
+								*bq = bq.Must(bq_child1)
+							}else{
+								logs.Debug("false")
+								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+								bq_child2 = bq_child2.MustNot(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceSlice_form[5]))
+								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Should(bq_child2)
+								bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child1 = bq_child1.Should(bq_child3)
+								bq_child1 = bq_child1.MinimumShouldMatch("1")
+								*bq = bq.Must(bq_child1)
+							}
+					}
+			}
  return nil
 }
+
+//--------------------------------------------------------------------------------------------------------------------
 
 func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("SearchContacts - search.go")
@@ -382,7 +626,6 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 				from_requete = 0
 			}
 		}
-
 	} else {
 		// par défaut
 		size_requete = 1000
@@ -412,10 +655,9 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		Size(size_requete).
 		From(from_requete).
 		Sort(sort, asc).
+		Pretty(true).
 		Do()
 
-		//logs.Debug(bq.Query)
-		//logs.Debug(bq.Source())
 	if err != nil {
 		logs.Critical(err)
 		return err
