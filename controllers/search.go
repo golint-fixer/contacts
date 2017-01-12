@@ -426,6 +426,16 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 							if dataSlice_form[0]=="TEXT"{
 								interfaceSlice_form[j]=d
 							}
+							/*
+							if dataSlice_form[0]=="RADIO"{
+								temp,err := strconv.Atoi(d)
+								if err != nil {
+									logs.Error(err)
+									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-1")
+									return err
+								}
+								interfaceSlice_form[j]=temp
+							}*/
 
 							if dataSlice_form[0]=="DATE"{
 								temp,err := time.Parse(time.RFC3339, d)
@@ -539,8 +549,12 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 						}else{
 							if (interfaceSlice_form[2].(bool)){
 								logs.Debug("true")
-								bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
-								bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
+								//if(dataSlice_form[0]=="RADIO"){
+								//	bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.form_ref_id",interfaceSlice_form[3] ,interfaceSlice_form[4]))
+								//}else{
+									bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+									bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
+								//}
 								*bq = bq.Must(bq_child1)
 							}else{
 								logs.Debug("false")
@@ -724,6 +738,12 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 		aggreg_kpi_birthdate[index_agecat]=elastic.NewDateRangeAggregation().Field("birthdate").Between(refInterval[index_agecat],refInterval[index_agecat-1])
 	}
 
+	//--------------------------------------------------------------------------------------------------------------------
+
+
+
+	//--------------------------------------------------------------------------------------------------------------------
+
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		//FetchSourceContext(source).
@@ -770,46 +790,46 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	a6_agg, found12 := searchResult.Aggregations.DateRange("6_aggreg")
 
 	if !found {
-		logs.Debug("we sould have a terms aggregation called %q", "gender_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "gender_aggreg")
 	}
 	if !found1 {
-		logs.Debug("we sould have a terms aggregation called %q", "gender_missing_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "gender_missing_aggreg")
 	}
 	if !found2 {
-		logs.Debug("we sould have a terms aggregation called %q", "pollingstation_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "pollingstation_aggreg")
 	}
 	if !found2bis {
-		logs.Debug("we sould have a terms aggregation called %q", "pollingstation_missing_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "pollingstation_missing_aggreg")
 	}
 	if !found3 {
-		logs.Debug("we sould have a terms aggregation called %q", "agecategory_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "agecategory_aggreg")
 	}
 	// if !found4 {
 	// 	logs.Debug("we sould have a terms aggregation called %q", "birthdate_aggreg")
 	// }
 	if !found5 {
-		logs.Debug("we sould have a terms aggregation called %q", "lastchange_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "lastchange_aggreg")
 	}
 	if !found6 {
-		logs.Debug("we sould have a terms aggregation called %q", "0_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "0_aggreg")
 	}
 	if !found7 {
-		logs.Debug("we sould have a terms aggregation called %q", "1_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "1_aggreg")
 	}
 	if !found8 {
-		logs.Debug("we sould have a terms aggregation called %q", "2_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "2_aggreg")
 	}
 	if !found9 {
-		logs.Debug("we sould have a terms aggregation called %q", "3_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "3_aggreg")
 	}
 	if !found10 {
-		logs.Debug("we sould have a terms aggregation called %q", "4_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "4_aggreg")
 	}
 	if !found11 {
-		logs.Debug("we sould have a terms aggregation called %q", "5_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "5_aggreg")
 	}
 	if !found12 {
-		logs.Debug("we sould have a terms aggregation called %q", "6_aggreg")
+		logs.Error("we sould have a terms aggregation called %q", "6_aggreg")
 	}
 
 	if searchResult.Aggregations != nil {
@@ -879,14 +899,16 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 
 		// ---- stockage réponses pour agecategory_aggreg -----------------------
 		// on récupère les données issus du champ age category dans un tab temporaire
-		var tab_TEMP [7]int64
+		var tab_category_Age [7]int64
+		var sum_category_Age int64
 		for _, bucket := range agecategory_agg.Buckets {
-			tab_TEMP[int(bucket.Key.(float64))]=bucket.DocCount
+			tab_category_Age[int(bucket.Key.(float64))]=bucket.DocCount
+			sum_category_Age= sum_category_Age+bucket.DocCount
 			//logs.Debug("---index_agecategory---")
 			//logs.Debug(bucket.Key.(float64))
 			//logs.Debug(bucket.DocCount)
 		}
-		//logs.Debug(tab_TEMP)
+		//logs.Debug(tab_category_Age)
 		// on aggrege les données pour chaque catégorie d'âge (count aggBirthdate par tranche + count age category)
 		for index_agecategory := 0; index_agecategory < 7; index_agecategory++ {
 
@@ -894,9 +916,8 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 			case 0:
 					var kpiAtom2 models.KpiReply
 					kpiAtom2.Key="0"
-					// somme de count de la catégorie d'âge
-					//cumul missing + category_age = 0
-					kpiAtom2.Doc_count=a0_agg.DocCount
+					// calcul du nombre d'âge manquant : somme des missing Birthdate - (somme des aggreg des cat d'âge - cat âge manquant)
+					kpiAtom2.Doc_count=a0_agg.DocCount-(sum_category_Age-tab_category_Age[0])
 					//on ajoute dans le tableau KpiReplies, la struct de résultats
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom2)
 
@@ -904,42 +925,42 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 				for _, bucket := range a1_agg.Buckets {
 					var kpiAtom models.KpiReply
 					kpiAtom.Key="1"
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom.Doc_count=bucket.DocCount+tab_category_Age[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
 			case 2:
 				for _, bucket := range a2_agg.Buckets {
 					var kpiAtom models.KpiReply
 					kpiAtom.Key="2"
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom.Doc_count=bucket.DocCount+tab_category_Age[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
 			case 3:
 				for _, bucket := range a3_agg.Buckets {
 					var kpiAtom models.KpiReply
 					kpiAtom.Key="3"
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom.Doc_count=bucket.DocCount+tab_category_Age[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
 			case 4:
 				for _, bucket := range a4_agg.Buckets {
 					var kpiAtom models.KpiReply
 					kpiAtom.Key="4"
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom.Doc_count=bucket.DocCount+tab_category_Age[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
 			case 5:
 				for _, bucket := range a5_agg.Buckets {
 					var kpiAtom models.KpiReply
 					kpiAtom.Key="5"
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom.Doc_count=bucket.DocCount+tab_category_Age[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
 			case 6:
 				for _, bucket := range a6_agg.Buckets {
 					var kpiAtom models.KpiReply
 					kpiAtom.Key="6"
-					kpiAtom.Doc_count=bucket.DocCount+tab_TEMP[index_agecategory]
+					kpiAtom.Doc_count=bucket.DocCount+tab_category_Age[index_agecategory]
 					tab_kpiAtom.KpiReplies=append(tab_kpiAtom.KpiReplies, kpiAtom)
 				}
 			default:
