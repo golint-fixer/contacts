@@ -6,7 +6,10 @@
 # Folders
 _obj
 _test
-
+configs/
+*.json
+configs/integration.json
+configs/developmentReal.json
 # Architecture specific extensions/prefixes
 *.[568vq]
 [568vq].out
