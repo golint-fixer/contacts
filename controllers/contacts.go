@@ -93,7 +93,13 @@ func (t *Contact) Create(args models.ContactArgs, reply *models.ContactReply) er
 		return err
 	}
 
-	reply.Contact = args.Contact
+	args.Contact.Address = models.Address{}
+	args.Contact.Formdatas = nil
+
+	//reply.Contact = args.Contact
+	if reply.Contact, err = contactStore.First(args); err != nil {
+		return err
+	}
 
 	return nil
 }
