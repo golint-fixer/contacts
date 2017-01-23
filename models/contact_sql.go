@@ -4,6 +4,8 @@ package models
 import (
 	"errors"
 	"github.com/jinzhu/gorm"
+	"strconv"
+	"github.com/quorumsco/logs"
 )
 
 // ContactSQL contains a Gorm client and the contact and gorm related methods
@@ -17,7 +19,6 @@ func (s *ContactSQL) Save(c *Contact, args ContactArgs) error {
 		return errors.New("save: contact is nil")
 	}
 
-
 	c.GroupID = args.Contact.GroupID
 	if c.ID == 0 {
 		err := s.DB.Create(c).Error
@@ -28,18 +29,23 @@ func (s *ContactSQL) Save(c *Contact, args ContactArgs) error {
 	// pour les formulaires à détruire lorsque le champ "Data" est mis à la valeur "ToDelete"
 	for i := len(c.Formdatas) - 1; i >= 0; i-- {
     formdata := c.Formdatas[i]
+
     // Condition to decide if current element has to be deleted:
     if (formdata.Data=="ToDelete"){
-			if err := s.DB.Delete(c.Formdatas[i]).Error; err != nil {
-				return err
-			}else{
-				s := c.Formdatas
-		    s = append(s[:i], s[i+1:]...)
-		    c.Formdatas = s
-			}
+			if (formdata.ID>0){
+				if err := s.DB.Delete(c.Formdatas[i]).Error; err != nil {
+					return err
+				}else{
+					s := c.Formdatas
+			    s = append(s[:i], s[i+1:]...)
+			    c.Formdatas = s
+				}
+		   }else{
+			 logs.Error("ENTER TO DELETE WITHOUT ID- contacter le support")
+			 return errors.New("ENTER TO DELETE - contacter le support")
+		 }
     }
 	}
-
 	return s.DB.Where("group_id = ?", args.Contact.GroupID).Save(c).Error
 }
 

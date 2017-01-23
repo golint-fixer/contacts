@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"errors"
 	"github.com/jinzhu/gorm"
 	"github.com/quorumsco/contacts/models"
 	"github.com/quorumsco/logs"
@@ -16,7 +17,6 @@ type Formdata struct {
 func (t *Formdata) RetrieveCollection(args models.FormdataArgs, reply *models.FormdataReply) error {
 	var (
 		err error
-
 		FormdataStore = models.FormdataStore(t.DB)
 	)
 
@@ -48,7 +48,6 @@ func (t *Formdata) Retrieve(args models.FormdataArgs, reply *models.FormdataRepl
 func (t *Formdata) Create(args models.FormdataArgs, reply *models.FormdataReply) error {
 	var (
 		err error
-
 		FormdataStore = models.FormdataStore(t.DB)
 	)
 
@@ -66,7 +65,6 @@ func (t *Formdata) Create(args models.FormdataArgs, reply *models.FormdataReply)
 func (t *Formdata) Delete(args models.FormdataArgs, reply *models.FormdataReply) error {
 	var (
 		err error
-
 		FormdataStore = models.FormdataStore(t.DB)
 	)
 
@@ -78,17 +76,20 @@ func (t *Formdata) Delete(args models.FormdataArgs, reply *models.FormdataReply)
 	return nil
 }
 
-// Delete calls the FormdataSQL Delete method and returns the results via RPC
+// Delete calls the FormdataSQL DeleteAll method and returns the results via RPC
 func (t *Formdata) DeleteAll(args models.FormdataArgs, reply *models.FormdataReply) error {
 	var (
 		err error
-
 		FormdataStore = models.FormdataStore(t.DB)
 	)
-
-	if err = FormdataStore.DeleteAll(args.Formdata, args); err != nil {
-		logs.Debug(err)
-		return err
+	//args.Formdata.GroupID).Where("contact_id = ?", args.Formdata.ContactID).Where("form_id = ?", args.Formdata.FormID
+	if (args.Formdata.GroupID>0&&args.Formdata.ContactID>0&&args.Formdata.FormID>0){
+		if err = FormdataStore.DeleteAll(args.Formdata, args); err != nil {
+			logs.Debug(err)
+			return err
+		}
+	}else{
+		return errors.New("Au moins un des arguments n'est pas renseigné (GroupID/ContactID/FormID)")
 	}
 
 	return nil
