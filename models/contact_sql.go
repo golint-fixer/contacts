@@ -4,7 +4,6 @@ package models
 import (
 	"errors"
 	"github.com/jinzhu/gorm"
-	"strconv"
 	"github.com/quorumsco/logs"
 )
 
