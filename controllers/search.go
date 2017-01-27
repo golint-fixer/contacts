@@ -388,11 +388,7 @@ for Date -> interfaceSlice_form[]=["DATE",123,false,645,"23/12/2015","27/12/2016
 func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			//pour chacun des forms où l'on souhaite faire une requête
 
-			logs.Debug("len(args.Search.Fields):")
-			logs.Debug(len(args.Search.Fields))
 			for i := 9; i < len(args.Search.Fields); i++ {
-					logs.Debug("i:")
-					logs.Debug(i)
 					var dataSlice_form []string = strings.Split(args.Search.Fields[i], "/")
 					//création d'un array d'interface
 					var interfaceSlice_form []interface{} = make([]interface{}, len(dataSlice_form))
@@ -488,15 +484,15 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 					// si la requête pour Form ne contient que trois éléménts, alors cela est soit une reqûete de présence ou d'absence de formdata (répondu, pas répondu)
 
 					if len(interfaceSlice_form)==3{
-						logs.Debug("3:")
+
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
 						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
-						//logs.Debug(interfaceSlice_form[2].(bool))
+
 						if (interfaceSlice_form[2].(bool)){
-							logs.Debug("true")
+
 							*bq = bq.Must(elastic.NewTermsQuery("formdatas.form_id", interfaceSlice_form[1]))
 						}else{
-							logs.Debug("false")
+
 							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
 							bq_child2 = bq_child2.MustNot(elastic.NewTermQuery("formdatas.form_id", interfaceSlice_form[1]))
 							bq_child1 = bq_child1.Should(bq_child2)
@@ -507,14 +503,14 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 					}
 					// si la requête pour Form contient quatre éléménts, alors cela est soit une reqûete pour radio ou checkbow pour vérifier que le form_ref_id correspondant à une valeur est dans le formdata
 					if len(interfaceSlice_form)==4{
-						logs.Debug("4:")
+
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
 						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
 						if (interfaceSlice_form[2].(bool)){
-							logs.Debug("true")
+
 							*bq = bq.Must(elastic.NewTermsQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 						}else{
-							logs.Debug("false")
+
 							bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
 							bq_child2 = bq_child2.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 							bq_child1 = bq_child1.Should(bq_child2)
@@ -524,7 +520,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 					}
 
 					if len(interfaceSlice_form)==5{
-						logs.Debug("5:")
+
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
 						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
 						var bq_child3 elastic.BoolQuery = elastic.NewBoolQuery()
@@ -536,7 +532,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 								bq_child1 = bq_child1.Must(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
 								*bq = bq.Must(bq_child1)
 							}else{
-								logs.Debug("false")
+
 								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
 								bq_child2 = bq_child2.MustNot(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
 								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
@@ -548,7 +544,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 							}
 						}else{
 							if (interfaceSlice_form[2].(bool)){
-								logs.Debug("true")
+
 								//if(dataSlice_form[0]=="RADIO"){
 								//	bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.form_ref_id",interfaceSlice_form[3] ,interfaceSlice_form[4]))
 								//}else{
@@ -557,7 +553,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 								//}
 								*bq = bq.Must(bq_child1)
 							}else{
-								logs.Debug("false")
+
 								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
 								bq_child2 = bq_child2.MustNot(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
 								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
@@ -570,7 +566,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 						}
 					}
 					if len(interfaceSlice_form)==6{
-							logs.Debug("6:")
+
 							var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
 							var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
 							var bq_child3 elastic.BoolQuery = elastic.NewBoolQuery()
@@ -580,7 +576,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 								bq_child1 = bq_child1.Must(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceSlice_form[5]))
 								*bq = bq.Must(bq_child1)
 							}else{
-								logs.Debug("false")
+
 								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
 								bq_child2 = bq_child2.MustNot(elastic.NewRangeQuery("formdatas.data").Gte(interfaceSlice_form[4]).Lte(interfaceSlice_form[5]))
 								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
