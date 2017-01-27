@@ -4,7 +4,6 @@ package models
 import (
 	"errors"
 	"github.com/jinzhu/gorm"
-	"github.com/quorumsco/logs"
 )
 
 // ContactSQL contains a Gorm client and the contact and gorm related methods
@@ -30,20 +29,27 @@ func (s *ContactSQL) Save(c *Contact, args ContactArgs) error {
     formdata := c.Formdatas[i]
 
     // Condition to decide if current element has to be deleted:
-    if (formdata.Data=="ToDelete"){
-			if (formdata.ID>0){
-				if err := s.DB.Delete(c.Formdatas[i]).Error; err != nil {
-					return err
-				}else{
+    // if (formdata.Data=="ToDelete"){
+		// 	if (formdata.ID>0){
+		// 		if err := s.DB.Delete(c.Formdatas[i]).Error; err != nil {
+		// 			return err
+		// 		}else{
+		// 			s := c.Formdatas
+		// 	    s = append(s[:i], s[i+1:]...)
+		// 	    c.Formdatas = s
+		// 		}
+		//    }else{
+		// 	 logs.Error("ENTER TO DELETE WITHOUT ID- contacter le support")
+		// 	 return errors.New("ENTER TO DELETE - contacter le support")
+		//  }
+    // }
+		c.Formdatas[i].ID=0
+		if (formdata.Data=="ToDelete"){
 					s := c.Formdatas
 			    s = append(s[:i], s[i+1:]...)
 			    c.Formdatas = s
-				}
-		   }else{
-			 logs.Error("ENTER TO DELETE WITHOUT ID- contacter le support")
-			 return errors.New("ENTER TO DELETE - contacter le support")
-		 }
     }
+
 	}
 	return s.DB.Where("group_id = ?", args.Contact.GroupID).Save(c).Error
 }
