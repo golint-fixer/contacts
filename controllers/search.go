@@ -1073,6 +1073,7 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 	Query = Query.Operator("and")
 
 	Query = Query.Field("address.street")
+	Query = Query.Field("address.housenumber")
 	Query = Query.Field("address.city")
 
 	// donneées à récupérer dans le résultat
