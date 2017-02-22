@@ -188,10 +188,12 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			} else if args.Search.Fields[1] == "name" {
 				//champs dans lesquels chercher
 				Query = Query.Field("surname")
+				Query = Query.Field("married_name")
 			} else if args.Search.Fields[1] == "fullname" {
 				//champs dans lesquels chercher
 				Query = Query.Field("firstname")
 				Query = Query.Field("surname")
+				Query = Query.Field("married_name")
 			} else if args.Search.Fields[1] == "street" {
 				//champs dans lesquels chercher
 				Query = Query.Field("address.street")
@@ -200,16 +202,19 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 				//champs dans lesquels chercher
 				Query = Query.Field("surname")
 				Query = Query.Field("firstname")
+				Query = Query.Field("married_name")
 				Query = Query.Field("address.street")
 				Query = Query.Field("address.city")
 			} else if args.Search.Fields[1] == "city&name" {
 				//champs dans lesquels chercher
 				Query = Query.Field("address.city")
 				Query = Query.Field("surname")
+				Query = Query.Field("married_name")
 			} else if args.Search.Fields[1] == "city&name&street" {
 				//champs dans lesquels chercher
 				Query = Query.Field("address.city")
 				Query = Query.Field("surname")
+				Query = Query.Field("married_name")
 				Query = Query.Field("address.street")
 			}
 	}
@@ -614,6 +619,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("id")
 	source = source.Include("firstname")
 	source = source.Include("surname")
+	source = source.Include("married_name")
 	source = source.Include("address.street")
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
@@ -1301,6 +1307,7 @@ func (s *Search) RetrieveContacts(args models.SearchArgs, reply *models.SearchRe
 	source = source.Include("id")
 	source = source.Include("firstname")
 	source = source.Include("surname")
+	source = source.Include("married_name")
 	source = source.Include("address.street")
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
