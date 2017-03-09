@@ -396,98 +396,86 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			logs.Debug("len(args.Search.Fields):")
 			logs.Debug(len(args.Search.Fields))
 			for i := 9; i < len(args.Search.Fields); i++ {
-					logs.Debug("i:")
-					logs.Debug(i)
 					var dataSlice_form []string = strings.Split(args.Search.Fields[i], "/")
 					//création d'un array d'interface
 					var interfaceSlice_form []interface{} = make([]interface{}, len(dataSlice_form))
 
 					//affectation du tableau de sting au tab d'interface
-					for j, d := range dataSlice_form {
-						switch j {
+					for index, argument := range dataSlice_form {
+						switch index {
 
 						case 0:
-							interfaceSlice_form[j]=d
+							interfaceSlice_form[index]=argument
 
 						case 1,3:
-							temp,err := strconv.Atoi(d)
+							temp,err := strconv.Atoi(argument)
 							if err != nil {
 								logs.Error(err)
 								err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-1")
 								return err
 							}
-							interfaceSlice_form[j]=temp
+							interfaceSlice_form[index]=temp
 
 						case 2:
-							temp,err := strconv.ParseBool(d)
+							temp,err := strconv.ParseBool(argument)
 							if err != nil {
 								logs.Error(err)
 								err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-2")
 								return err
 							}
-							interfaceSlice_form[j]=temp
+							interfaceSlice_form[index]=temp
 
 						case 4,5:
 							if dataSlice_form[0]=="TEXT"{
-								interfaceSlice_form[j]=d
+								interfaceSlice_form[index]=argument
 							}
-							/*
-							if dataSlice_form[0]=="RADIO"{
-								temp,err := strconv.Atoi(d)
-								if err != nil {
-									logs.Error(err)
-									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-1")
-									return err
-								}
-								interfaceSlice_form[j]=temp
-							}*/
 
 							if dataSlice_form[0]=="DATE"{
-								temp,err := time.Parse(time.RFC3339, d)
+								temp,err := time.Parse(time.RFC3339, argument)
 								if err != nil {
 									logs.Error(err)
 									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-3")
 									return err
 								}
 								temp2 := int(temp.Unix())*1000
-								interfaceSlice_form[j]=temp2
+								interfaceSlice_form[index]=temp2
 							}
 
 							if dataSlice_form[0]=="RANGE"{
-								temp,err := strconv.Atoi(d)
+								temp,err := strconv.Atoi(argument)
 								if err != nil {
 									logs.Error(err)
 									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-4")
 									return err
 								}
-								interfaceSlice_form[j]=temp
+								interfaceSlice_form[index]=temp
 							}
 
 						case 8:
 							if dataSlice_form[0]=="TEXT"{
-								interfaceSlice_form[j]=d
+								interfaceSlice_form[index]=argument
 							}
 							if dataSlice_form[0]=="DATE"{
-								temp,err := strconv.Atoi(d)
+								temp,err := strconv.Atoi(argument)
 								if err != nil {
 									logs.Error(err)
 									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-5")
 									return err
 								}
-								interfaceSlice_form[j]=temp
+								interfaceSlice_form[index]=temp
 							}
 							if dataSlice_form[0]=="RANGE"{
-								temp,err := strconv.Atoi(d)
+								temp,err := strconv.Atoi(argument)
 								if err != nil {
 									logs.Error(err)
 									err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-6")
 									return err
 								}
-								interfaceSlice_form[j]=temp
+								interfaceSlice_form[index]=temp
 							}
 
 						default:
-							interfaceSlice_form[j]=d
+							interfaceSlice_form[index]=argument
 						}
 					}
 					// si la requête pour Form ne contient que trois éléménts, alors cela est soit une reqûete de présence ou d'absence de formdata (répondu, pas répondu)
@@ -510,7 +498,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 							//*bq = bq.Must(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
 						}
 					}
-					// si la requête pour Form contient quatre éléménts, alors cela est soit une reqûete pour radio ou checkbow pour vérifier que le form_ref_id correspondant à une valeur est dans le formdata
+					// si la requête pour Form contient quatre éléménts, alors cela est soit une reqûete pour radio ou checkbox pour vérifier que le form_ref_id correspondant à une valeur est dans le formdata
 					if len(interfaceSlice_form)==4{
 						logs.Debug("4:")
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
@@ -527,7 +515,7 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 							*bq = bq.Must(bq_child1)
 						}
 					}
-
+					// requête avec valeur positionnée ----------------
 					if len(interfaceSlice_form)==5{
 						logs.Debug("5:")
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
@@ -557,10 +545,33 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 								//if(dataSlice_form[0]=="RADIO"){
 								//	bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.form_ref_id",interfaceSlice_form[3] ,interfaceSlice_form[4]))
 								//}else{
+								//pour découper (espace) le query du text afin de faire plusieurs arguments
+								if(dataSlice_form[0]=="TEXT"){
+									var texts = strings.Split(dataSlice_form[4], " ")
+									for index, text := range texts {
+										if (text==""){
+											texts = append(texts[:index], texts[index+1:]...)
+										}
+									}
+									//création d'un array d'interface
+									var interfaceSlice_dataSlice_form4 []interface{} = make([]interface{}, len(texts))
+									for index, text := range texts {
+										interfaceSlice_dataSlice_form4[index]=text
+									}
+
+
+									logs.Debug("texts:")
+									logs.Debug(texts)
+									bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+									bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data", interfaceSlice_dataSlice_form4...))
+								} else{
 									bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 									bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
-								//}
-								*bq = bq.Must(bq_child1)
+								}
+								// *bq = bq.Must(bq_child1)
+								var bq_child_nested elastic.NestedQuery
+								bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+								*bq = bq.Must(bq_child_nested)
 							}else{
 								logs.Debug("false")
 								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
@@ -570,10 +581,14 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 								bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 								bq_child1 = bq_child1.Should(bq_child3)
 								bq_child1 = bq_child1.MinimumShouldMatch("1")
-								*bq = bq.Must(bq_child1)
+								// *bq = bq.Must(bq_child1)
+								var bq_child_nested elastic.NestedQuery
+								bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+								*bq = bq.Must(bq_child_nested)
 							}
 						}
 					}
+					// plusieurs dates ou integer--------
 					if len(interfaceSlice_form)==6{
 							logs.Debug("6:")
 							var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
@@ -668,6 +683,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 
  //-------- findcontacts classique -----------------------------------------------
 
+
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
@@ -682,6 +698,9 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		logs.Critical(err)
 		return err
 	}
+	sourceTTT := bq.Source()
+	data, _ := json.Marshal(sourceTTT)
+	fmt.Println("DATA", string(data))
 
 	// traitements des hits --------------------------------
 	if searchResult.Hits != nil {
