@@ -46,9 +46,7 @@ type Contact struct {
 	AddressID    uint       `json:"-" db:"address_id"`
 
 	LastChange    *time.Time `json:"lastchange,omitempty"`
-
-	Vote    string `json:"vote"`
-	Support string `json:"support"`
+	LastChangeUserID    uint `json:"lastchangeuserid,omitempty"`
 
 	GroupID uint `sql:"not null" db:"group_id" json:"group_id"`
 
