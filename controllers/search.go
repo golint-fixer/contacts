@@ -636,6 +636,13 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("address.street")
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
+	source = source.Include("gender")
+	source = source.Include("birthdate")
+	source = source.Include("phone")
+	source = source.Include("lastchange")
+	source = source.Include("formdatas")
+
+
 
 	// positionner le nombre de résultats attendus : nb de contacts -----------------
 	var size_requete int
