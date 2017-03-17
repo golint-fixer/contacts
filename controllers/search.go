@@ -171,7 +171,7 @@ func SliceIndex(limit int, predicate func(i int) bool) int {
 
 func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 	//query au cas où il y'a quelque chose dans la barre de recherche
-	Query := elastic.NewMultiMatchQuery(args.Search.Query)//A remplacer par fields[] plus tard
+	Query := elastic.NewMultiMatchQuery(strings.ToLower(args.Search.Query))//A remplacer par fields[] plus tard
 	//query au cas où il n'y a rien dans la barre de recherche
 	QueryVide := elastic.NewMatchAllQuery()
 	*bq = elastic.NewBoolQuery()
@@ -1096,7 +1096,7 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.SearchReply) error {
 	//logs.Debug("args.Search.Query:%s", args.Search.Query)
 	//logs.Debug("args.Search.Fields:%s", args.Search.Fields)
-	Query := elastic.NewMultiMatchQuery(args.Search.Query) //A remplacer par fields[] plus tard
+	Query := elastic.NewMultiMatchQuery(strings.ToLower(args.Search.Query)) //A remplacer par fields[] plus tard
 
 	//https://www.elastic.co/guide/en/elasticsearch/reference/1.7/query-dsl-multi-match-query.html#type-phrase
 	Query = Query.Type("cross_fields")
