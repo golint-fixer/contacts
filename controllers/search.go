@@ -285,7 +285,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		}
 		//--------------------------------Forms ------------------------------------------------------------
 		// si la taille est supérieure à 9, c'est que l'on transmet des arguments de filtre de type FORM
-		if len(args.Search.Fields)>10{
+		if len(args.Search.Fields)>11{
 			err := BuildQueryForm(args,bq)
 			if err != nil {
 				logs.Error(err)
@@ -355,11 +355,26 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		//--------------------------------------LASTCHANGE --------------------------------------------
 
 		if (len(args.Search.Fields)>9){
-			var lastchange = args.Search.Fields[9]
-			if lastchange != ""{
-	      			*bq = bq.Must(elastic.NewRangeQuery("lastchange").Gte(lastchange))
+			var lastchange_filter = args.Search.Fields[9]
+			if lastchange_filter != ""{
+	      			*bq = bq.Must(elastic.NewRangeQuery("lastchange").Gte(lastchange_filter))
 			}
 		}
+		//--------------------------------------EMAIL FILTER --------------------------------------------
+		if (len(args.Search.Fields)>10){
+			var email_filter = args.Search.Fields[10]
+			if email_filter != ""{
+				var dataSlice_email []string = strings.Split(email_filter, "/")
+				if (len(dataSlice_email)==1){
+					if (dataSlice_email[0]=="SET"){
+						*bq = bq.MustNot(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("mail")))
+					}else{
+						*bq = bq.Must(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("mail")))
+					}
+				}
+			}
+		}
+
 
 
 
