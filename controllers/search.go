@@ -671,6 +671,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("gender")
 	source = source.Include("birthdate")
 	source = source.Include("phone")
+	source = source.Include("mobile")
+	source = source.Include("mail")
 	source = source.Include("lastchange")
 	source = source.Include("formdatas")
 
