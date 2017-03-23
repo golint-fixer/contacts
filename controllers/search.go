@@ -285,7 +285,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		}
 		//--------------------------------Forms ------------------------------------------------------------
 		// si la taille est supérieure à 9, c'est que l'on transmet des arguments de filtre de type FORM
-		if len(args.Search.Fields)>9{
+		if len(args.Search.Fields)>10{
 			err := BuildQueryForm(args,bq)
 			if err != nil {
 				logs.Error(err)
@@ -351,6 +351,19 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			*bq = bq.Should(elastic.NewTermsQuery("age_category", interfaceSlice_agecategory...))
 			*bq = bq.MinimumShouldMatch("1")
 		}
+
+		//--------------------------------------LASTCHANGE --------------------------------------------
+
+		if (len(args.Search.Fields)>9){
+			var lastchange = args.Search.Fields[9]
+			if lastchange != ""{
+	      			*bq = bq.Must(elastic.NewRangeQuery("lastchange").Gte(lastchange))
+			}
+		}
+
+
+
+
 	}
 return nil
 }
@@ -393,7 +406,7 @@ for Date -> interfaceSlice_form[]=["DATE",123,false,645,"23/12/2015","27/12/2016
 func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			//pour chacun des forms où l'on souhaite faire une requête
 
-			for i := 9; i < len(args.Search.Fields); i++ {
+			for i := 10; i < len(args.Search.Fields); i++ {
 					var dataSlice_form []string = strings.Split(args.Search.Fields[i], "/")
 					//création d'un array d'interface
 					var interfaceSlice_form []interface{} = make([]interface{}, len(dataSlice_form))
