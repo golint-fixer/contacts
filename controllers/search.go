@@ -546,6 +546,9 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 						var bq_child1 elastic.BoolQuery = elastic.NewBoolQuery()
 						var bq_child2 elastic.BoolQuery = elastic.NewBoolQuery()
 						var bq_child3 elastic.BoolQuery = elastic.NewBoolQuery()
+						var bq_child4 elastic.BoolQuery = elastic.NewBoolQuery()
+						var bq_child_nested elastic.NestedQuery
+
 
 						if(dataSlice_form[0]=="DATE"){
 							var interfaceTemp interface{}
@@ -553,20 +556,28 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 							if (interfaceSlice_form[2].(bool)){
 								bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 								bq_child1 = bq_child1.Must(elastic.NewRangeQuery("formdatas.data.strictdata").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
-								*bq = bq.Must(bq_child1)
+								bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+								*bq = bq.Must(bq_child_nested)
 							}else{
 
 								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
-								bq_child2 = bq_child2.MustNot(elastic.NewRangeQuery("formdatas.data.strictdata").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
-								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+										bq_child2 = bq_child2.MustNot(elastic.NewRangeQuery("formdatas.data.strictdata").Gte(interfaceSlice_form[4]).Lte(interfaceTemp))
+										bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 								bq_child1 = bq_child1.Should(bq_child2)
-								bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
-								bq_child1 = bq_child1.Should(bq_child3)
 								bq_child1 = bq_child1.MinimumShouldMatch("1")
-								*bq = bq.Must(bq_child1)
+								bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+
+								bq_child4 = bq_child4.Should(bq_child_nested)
+
+
+									bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child4 = bq_child4.Should(bq_child3)
+
+								bq_child4 = bq_child4.MinimumShouldMatch("1")
+
+								*bq = bq.Must(bq_child4)
 							}
 						}else if(dataSlice_form[0]=="TEXT"){
-
 								//pour découper (espace) le query du text afin de faire plusieurs arguments
 								var texts = strings.Split(dataSlice_form[4], " ")
 								for index, text := range texts {
@@ -583,39 +594,59 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 								if (interfaceSlice_form[2].(bool)){
 										bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 										bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data", interfaceSlice_dataSlice_form4...))
+										bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+										*bq = bq.Must(bq_child_nested)
 								}else{
-									bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
-									bq_child2 = bq_child2.MustNot(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
-									bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
-									bq_child1 = bq_child1.Should(bq_child2)
-									bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
-									bq_child1 = bq_child1.Should(bq_child3)
-									bq_child1 = bq_child1.MinimumShouldMatch("1")
-									// *bq = bq.Must(bq_child1)
+											bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+													bq_child2 = bq_child2.MustNot(elastic.NewTermsQuery("formdatas.data", interfaceSlice_form[4]))
+													bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+											bq_child1 = bq_child1.Should(bq_child2)
+											bq_child1 = bq_child1.MinimumShouldMatch("1")
+											bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+
+										bq_child4 = bq_child4.Should(bq_child_nested)
+
+
+											bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+										bq_child4 = bq_child4.Should(bq_child3)
+
+										bq_child4 = bq_child4.MinimumShouldMatch("1")
+
+										*bq = bq.Must(bq_child4)
 								}
-								var bq_child_nested elastic.NestedQuery
-								bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
-								*bq = bq.Must(bq_child_nested)
+
+
 
 						}else {
-
 							if (interfaceSlice_form[2].(bool)){
 									bq_child1 = bq_child1.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
 									bq_child1 = bq_child1.Must(elastic.NewTermsQuery("formdatas.data.strictdata", interfaceSlice_form[4]))
-									// *bq = bq.Must(bq_child1)
+									bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+									*bq = bq.Must(bq_child_nested)
 							}else{
-								bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
-								bq_child2 = bq_child2.MustNot(elastic.NewTermsQuery("formdatas.data.strictdata", interfaceSlice_form[4]))
-								bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
-								bq_child1 = bq_child1.Should(bq_child2)
-								bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
-								bq_child1 = bq_child1.Should(bq_child3)
-								bq_child1 = bq_child1.MinimumShouldMatch("1")
-								// *bq = bq.Must(bq_child1)
+
+											bq_child1 = bq_child1.Should(elastic.NewFilteredQuery(elastic.NewMatchAllQuery()).Filter(elastic.NewMissingFilter("formdatas.form_ref_id")))
+													bq_child2 = bq_child2.MustNot(elastic.NewTermsQuery("formdatas.data.strictdata", interfaceSlice_form[4]))
+													bq_child2 = bq_child2.Must(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+											bq_child1 = bq_child1.Should(bq_child2)
+											bq_child1 = bq_child1.MinimumShouldMatch("1")
+
+									bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
+
+								bq_child4 = bq_child4.Should(bq_child_nested)
+
+
+									bq_child3 = bq_child3.MustNot(elastic.NewTermQuery("formdatas.form_ref_id", interfaceSlice_form[3]))
+								bq_child4 = bq_child4.Should(bq_child3)
+
+								bq_child4 = bq_child4.MinimumShouldMatch("1")
+
+								*bq = bq.Must(bq_child4)
+
 							}
-							var bq_child_nested elastic.NestedQuery
-							bq_child_nested = elastic.NewNestedQuery("formdatas").Query(bq_child1)
-							*bq = bq.Must(bq_child_nested)
+
+
+
 						}
 					}
 					// plusieurs dates ou integer--------
