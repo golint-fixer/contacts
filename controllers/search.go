@@ -174,6 +174,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 	Query := elastic.NewMultiMatchQuery(strings.ToLower(args.Search.Query))//A remplacer par fields[] plus tard
 	//query au cas où il n'y a rien dans la barre de recherche
 	QueryVide := elastic.NewMatchAllQuery()
+
 	*bq = elastic.NewBoolQuery()
 	//si il y'a une recherche à faire sur un ou des termes
 	if args.Search.Query!="" {
@@ -682,6 +683,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	logs.Debug("SearchContacts - search.go")
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
+	logs.Debug("args.Search.Polygon:%s", args.Search.Polygon)
 
 	var bq elastic.BoolQuery
 	err := BuildQuery(args,&bq)
@@ -689,6 +691,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		logs.Error(err)
 		return err
 	}
+
 
 	// donneées à récupérer dans le résultat -----------------------------------
 	source := elastic.NewFetchSourceContext(true)
@@ -754,10 +757,21 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
  //-------- findcontacts classique -----------------------------------------------
 
 
+ //-------------manage polygon Filter--------------------------
+ Filter := elastic.NewGeoPolygonFilter("location")
+ if (len(args.Search.Polygon)>0){
+	 var point models.Point
+	 for _, point = range args.Search.Polygon {
+		 geoPoint := elastic.GeoPointFromLatLon(point.Lat, point.Lon)
+		 Filter = Filter.AddPoint(geoPoint)
+	 }
+ }
+
 	searchResult, err := s.Client.Search().
 		Index("contacts").
 		FetchSourceContext(source).
 		Query(&bq).
+		PostFilter(Filter).
 		Size(size_requete).
 		From(from_requete).
 		Sort(sort, asc).
@@ -1388,6 +1402,7 @@ func (s *Search) SearchIDViaGeoPolygon(args models.SearchArgs, reply *models.Sea
 
 	return nil
 }
+
 
 // RetrieveContacts performs a match_all query to elasticsearch and returns the results via RPC
 func (s *Search) RetrieveContacts(args models.SearchArgs, reply *models.SearchReply) error {
