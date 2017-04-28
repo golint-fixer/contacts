@@ -757,26 +757,48 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
  //-------- findcontacts classique -----------------------------------------------
 
 
+
+ searchService := s.Client.Search().
+ Index("contacts").
+ FetchSourceContext(source).
+ Query(&bq).
+ Size(size_requete).
+ From(from_requete).
+ Sort(sort, asc).
+ Pretty(true)
+
+
+
  //-------------manage polygon Filter--------------------------
- Filter := elastic.NewGeoPolygonFilter("location")
- if (len(args.Search.Polygon)>0){
+
+
+
+
+ if len(args.Search.Polygon)>0{
+	 Filter := elastic.NewGeoPolygonFilter("location")
 	 var point models.Point
 	 for _, point = range args.Search.Polygon {
 		 geoPoint := elastic.GeoPointFromLatLon(point.Lat, point.Lon)
 		 Filter = Filter.AddPoint(geoPoint)
 	 }
+	 searchService.PostFilter(Filter)
  }
 
-	searchResult, err := s.Client.Search().
-		Index("contacts").
-		FetchSourceContext(source).
-		Query(&bq).
-		PostFilter(Filter).
-		Size(size_requete).
-		From(from_requete).
-		Sort(sort, asc).
-		Pretty(true).
-		Do()
+ //var searchResult = elastic.SearchResult{}
+  // searchResult, err := s.Client.Search().
+  // Index("contacts").
+  // FetchSourceContext(source).
+  // Query(&bq).
+  // PostFilter(Filter).
+  // Size(size_requete).
+  // From(from_requete).
+  // Sort(sort, asc).
+  // Pretty(true).
+	// Do()
+
+
+	searchResult, err := searchService.
+	Do()
 
 	if err != nil {
 		logs.Critical(err)
@@ -849,7 +871,14 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 
 	//--------------------------------------------------------------------------------------------------------------------
 
-
+	// Filter := elastic.NewGeoPolygonFilter("location")
+	// if (len(args.Search.Polygon)>0){
+	// 	var point models.Point
+	// 	for _, point = range args.Search.Polygon {
+	// 		geoPoint := elastic.GeoPointFromLatLon(point.Lat, point.Lon)
+	// 		Filter = Filter.AddPoint(geoPoint)
+	// 	}
+	// }
 
 	//--------------------------------------------------------------------------------------------------------------------
 
