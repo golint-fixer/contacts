@@ -871,37 +871,63 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 
 	//--------------------------------------------------------------------------------------------------------------------
 
-	// Filter := elastic.NewGeoPolygonFilter("location")
-	// if (len(args.Search.Polygon)>0){
-	// 	var point models.Point
-	// 	for _, point = range args.Search.Polygon {
-	// 		geoPoint := elastic.GeoPointFromLatLon(point.Lat, point.Lon)
-	// 		Filter = Filter.AddPoint(geoPoint)
-	// 	}
-	// }
+	searchService := s.Client.Search().
+	Index("contacts").
+	Size(0).
+	Aggregation("gender_aggreg", aggreg_kpi_gender).
+	Aggregation("gender_missing_aggreg", aggreg_kpi_gender_missing).
+	Aggregation("pollingstation_aggreg", aggreg_kpi_pollingstation).
+	Aggregation("pollingstation_missing_aggreg", aggreg_kpi_pollingstation_missing).
+	Aggregation("agecategory_aggreg", aggreg_kpi_agecategory).
+	//Aggregation("birthdate_aggreg", aggreg_kpi_birthdate).
+	Aggregation("lastchange_aggreg", aggreg_kpi_lastchange).
+	Aggregation("0_aggreg", aggreg_kpi_birthdate[0].(elastic.MissingAggregation)).
+	Aggregation("1_aggreg", aggreg_kpi_birthdate[1].(elastic.DateRangeAggregation)).
+	Aggregation("2_aggreg", aggreg_kpi_birthdate[2].(elastic.DateRangeAggregation)).
+	Aggregation("3_aggreg", aggreg_kpi_birthdate[3].(elastic.DateRangeAggregation)).
+	Aggregation("4_aggreg", aggreg_kpi_birthdate[4].(elastic.DateRangeAggregation)).
+	Aggregation("5_aggreg", aggreg_kpi_birthdate[5].(elastic.DateRangeAggregation)).
+	Aggregation("6_aggreg", aggreg_kpi_birthdate[6].(elastic.DateRangeAggregation))
+
+
+	Filter := elastic.NewGeoPolygonFilter("location")
+	if (len(args.Search.Polygon)>0){
+		var point models.Point
+		for _, point = range args.Search.Polygon {
+			geoPoint := elastic.GeoPointFromLatLon(point.Lat, point.Lon)
+			Filter = Filter.AddPoint(geoPoint)
+		}
+		searchService.Query(elastic.NewFilteredQuery(bq).Filter(Filter))
+	}else{
+		searchService.Query(&bq)
+	}
+	searchResult, err := searchService.
+	Do()
 
 	//--------------------------------------------------------------------------------------------------------------------
 
-	searchResult, err := s.Client.Search().
-		Index("contacts").
-		//FetchSourceContext(source).
-		Query(&bq).
-		Size(0).
-		Aggregation("gender_aggreg", aggreg_kpi_gender).
-		Aggregation("gender_missing_aggreg", aggreg_kpi_gender_missing).
-		Aggregation("pollingstation_aggreg", aggreg_kpi_pollingstation).
-		Aggregation("pollingstation_missing_aggreg", aggreg_kpi_pollingstation_missing).
-		Aggregation("agecategory_aggreg", aggreg_kpi_agecategory).
-		//Aggregation("birthdate_aggreg", aggreg_kpi_birthdate).
-		Aggregation("lastchange_aggreg", aggreg_kpi_lastchange).
-		Aggregation("0_aggreg", aggreg_kpi_birthdate[0].(elastic.MissingAggregation)).
-		Aggregation("1_aggreg", aggreg_kpi_birthdate[1].(elastic.DateRangeAggregation)).
-		Aggregation("2_aggreg", aggreg_kpi_birthdate[2].(elastic.DateRangeAggregation)).
-		Aggregation("3_aggreg", aggreg_kpi_birthdate[3].(elastic.DateRangeAggregation)).
-		Aggregation("4_aggreg", aggreg_kpi_birthdate[4].(elastic.DateRangeAggregation)).
-		Aggregation("5_aggreg", aggreg_kpi_birthdate[5].(elastic.DateRangeAggregation)).
-		Aggregation("6_aggreg", aggreg_kpi_birthdate[6].(elastic.DateRangeAggregation)).
-		Do()
+
+
+	// searchResult, err := s.Client.Search().
+	// 	Index("contacts").
+	// 	//FetchSourceContext(source).
+	// 	Query(toto).
+	// 	Size(0).
+	// 	Aggregation("gender_aggreg", aggreg_kpi_gender).
+	// 	Aggregation("gender_missing_aggreg", aggreg_kpi_gender_missing).
+	// 	Aggregation("pollingstation_aggreg", aggreg_kpi_pollingstation).
+	// 	Aggregation("pollingstation_missing_aggreg", aggreg_kpi_pollingstation_missing).
+	// 	Aggregation("agecategory_aggreg", aggreg_kpi_agecategory).
+	// 	//Aggregation("birthdate_aggreg", aggreg_kpi_birthdate).
+	// 	Aggregation("lastchange_aggreg", aggreg_kpi_lastchange).
+	// 	Aggregation("0_aggreg", aggreg_kpi_birthdate[0].(elastic.MissingAggregation)).
+	// 	Aggregation("1_aggreg", aggreg_kpi_birthdate[1].(elastic.DateRangeAggregation)).
+	// 	Aggregation("2_aggreg", aggreg_kpi_birthdate[2].(elastic.DateRangeAggregation)).
+	// 	Aggregation("3_aggreg", aggreg_kpi_birthdate[3].(elastic.DateRangeAggregation)).
+	// 	Aggregation("4_aggreg", aggreg_kpi_birthdate[4].(elastic.DateRangeAggregation)).
+	// 	Aggregation("5_aggreg", aggreg_kpi_birthdate[5].(elastic.DateRangeAggregation)).
+	// 	Aggregation("6_aggreg", aggreg_kpi_birthdate[6].(elastic.DateRangeAggregation)).
+	// 	Do()
 
 	if err != nil {
 		logs.Critical(err)
