@@ -702,6 +702,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("address.street")
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
+	source = source.Include("address.latitude")
+	source = source.Include("address.longitude")
 	source = source.Include("gender")
 	source = source.Include("birthdate")
 	source = source.Include("phone")
