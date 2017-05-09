@@ -217,6 +217,11 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 				Query = Query.Field("surname")
 				Query = Query.Field("married_name")
 				Query = Query.Field("address.street")
+			} else if args.Search.Fields[1] == "address" {
+				//champs dans lesquels chercher
+				Query = Query.Field("address.street")
+			  Query = Query.Field("address.housenumber")
+			  Query = Query.Field("address.city")
 			}
 	}
 
@@ -232,7 +237,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 	// contrôle si on est en recherche simple (mobile) ou avancée (desktop)
 	// si recherche avancée cad plus de 3 paramêtres dans Fields
-	if len(args.Search.Fields)>3{
+	if len(args.Search.Fields)>4{
 
 		//--------------------------------gender ------------------------------------------------------------
 
@@ -685,12 +690,25 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	logs.Debug("args.Search.Polygon:%s", args.Search.Polygon)
 
+
+	// TEMPORY PATCH FOR MOBILE COMPATIBILITY 0.1.4 (and inferior) -> delete the 4th parameters of "address" request
+	logs.Debug("len(args.Search.Fields):")
+	logs.Debug(len(args.Search.Fields))
+	if (args.Search.Fields[1]=="address"&&len(args.Search.Fields)==4){
+		logs.Debug("args.Search.Fields[3]:")
+		logs.Debug(args.Search.Fields[3])
+		args.Search.Fields[3]="0"
+	}
+
+
 	var bq elastic.BoolQuery
 	err := BuildQuery(args,&bq)
 	if err != nil {
 		logs.Error(err)
 		return err
 	}
+
+
 
 
 	// donneées à récupérer dans le résultat -----------------------------------
@@ -746,7 +764,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	var sort string
 	var asc bool
 
-	if len(args.Search.Fields) > 8 {
+	if (len(args.Search.Fields) > 8 && args.Search.Fields[7]!=""){
 		sort = args.Search.Fields[7]
 		if asc2, err := strconv.ParseBool(args.Search.Fields[8]); err == nil {
 			asc=asc2
@@ -756,20 +774,31 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		asc = true
 	}
 
+
+
+
  //-------- findcontacts classique -----------------------------------------------
 
 
+	 searchService := s.Client.Search().
+	 Index("contacts").
+	 FetchSourceContext(source).
+	 Query(&bq)
 
- searchService := s.Client.Search().
- Index("contacts").
- FetchSourceContext(source).
- Query(&bq).
- Size(size_requete).
- From(from_requete).
- Sort(sort, asc).
- Pretty(true)
+ // address aggs --------------------------------
 
-
+	 if (args.Search.Fields[1]=="address"){
+		 	logs.Debug("ADD AGGREGATION ADDRESS")
+		 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(size_requete)
+		 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_requete)
+		 	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
+			searchService.Size(0).Aggregation("result_aggreg", aggreg_lattitude).Sort("surname", true)
+	 }else{
+		 	searchService.Size(size_requete).
+		  From(from_requete).
+		  Sort(sort, asc).
+		  Pretty(true)
+	 }
 
  //-------------manage polygon Filter--------------------------
 
@@ -824,9 +853,41 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	} else {
 		reply.Contacts = nil
 	}
-
+	// traitement aggrégations -> address aggs -----------------
+	agg, found := searchResult.Aggregations.Terms("result_aggreg")
+  if !found {
+    logs.Debug("we sould have a terms aggregation called %q", "aggreg_lattitude")
+  }else{
+			if searchResult.Aggregations != nil {
+				for _, bucket := range agg.Buckets {
+					subaggreg_unique, found := bucket.TopHits("result_subaggreg")
+					if found {
+						// pour chaque addresse aggrégée
+						var cs models.AddressAggReply
+						for _, addresse := range subaggreg_unique.Hits.Hits {
+							//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+							var c models.Contact
+							err := json.Unmarshal(*addresse.Source, &c)
+							if err != nil {
+								logs.Error(err)
+								return err
+							}
+							cs.Contacts = append(cs.Contacts, c)
+						}
+						reply.AddressAggs = append(reply.AddressAggs, cs)
+					}
+				}
+			} else {
+				reply.Contacts = nil
+			}
+	}
+	//----------------------------------------------------
 	return nil
 }
+
+
+//-------------------------------------------------------------------------------------------------
+
 
 func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("SearchContacts - search.go")
