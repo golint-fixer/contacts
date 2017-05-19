@@ -439,12 +439,13 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 						case 0:
 							interfaceSlice_form[index]=argument
 
-						case 1,3:
+						case 1:
 							temp,err := strconv.Atoi(argument)
 							if err != nil {
 								logs.Error(err)
 								err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-1")
-								return err
+								interfaceSlice_form[index]=argument
+								//return err
 							}
 							interfaceSlice_form[index]=temp
 
@@ -457,6 +458,14 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 							}
 							interfaceSlice_form[index]=temp
 
+						case 3:
+							temp,err := strconv.Atoi(argument)
+							if err != nil {
+								logs.Error(err)
+								err = errors.New("Contactez le support.(bad arguments in the filtering of forms)-1")
+								return err
+							}
+							interfaceSlice_form[index]=temp
 						case 4,5:
 							if dataSlice_form[0]=="TEXT"{
 								interfaceSlice_form[index]=argument
@@ -1289,7 +1298,7 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 }
 
 */
-
+/*
 func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.SearchReply) error {
 	//logs.Debug("args.Search.Query:%s", args.Search.Query)
 	//logs.Debug("args.Search.Fields:%s", args.Search.Fields)
@@ -1383,9 +1392,8 @@ func (s *Search) SearchAddressesAggs(args models.SearchArgs, reply *models.Searc
 	}
 	return nil
 }
-
-// SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
-// search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
+*/
+//
 func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
