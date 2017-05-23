@@ -17,6 +17,10 @@ type AddressAggs struct {
 	AddressAggs []models.AddressAggReply `json:"AddressAggs"`
 }
 
+type AddressStreetAggs struct {
+	AddressStreetAggs []models.AddressStreetAggReply `json:"AddressStreetAggs"`
+}
+
 type Kpi struct {
 	Kpi []models.KpiAggs `json:"kpi"`
 }

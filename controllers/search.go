@@ -217,7 +217,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 				Query = Query.Field("surname")
 				Query = Query.Field("married_name")
 				Query = Query.Field("address.street")
-			} else if args.Search.Fields[1] == "address" {
+			} else if args.Search.Fields[1] == "address_tophits" || args.Search.Fields[1] == "address_aggreg"||args.Search.Fields[1]=="address" {
 				//champs dans lesquels chercher
 				Query = Query.Field("address.street")
 			  Query = Query.Field("address.housenumber")
@@ -703,7 +703,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	// TEMPORY PATCH FOR MOBILE COMPATIBILITY 0.1.4 (and inferior) -> delete the 4th parameters of "address" request
 	logs.Debug("len(args.Search.Fields):")
 	logs.Debug(len(args.Search.Fields))
-	if (args.Search.Fields[1]=="address"&&len(args.Search.Fields)==4){
+
+	if ((args.Search.Fields[1]=="address_tophits"||args.Search.Fields[1]=="address_aggreg"||args.Search.Fields[1]=="address")&&len(args.Search.Fields)==4){
 		logs.Debug("args.Search.Fields[3]:")
 		logs.Debug(args.Search.Fields[3])
 		args.Search.Fields[3]="0"
@@ -729,17 +730,30 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("address.street")
 	source = source.Include("address.housenumber")
 	source = source.Include("address.city")
+	source = source.Include("address.postalcode")
 	source = source.Include("address.latitude")
 	source = source.Include("address.longitude")
-	source = source.Include("gender")
-	source = source.Include("birthdate")
-	source = source.Include("phone")
-	source = source.Include("mobile")
-	source = source.Include("mail")
-	source = source.Include("lastchange")
-	source = source.Include("formdatas")
+	source = source.Include("address.addition")
+	//source = source.Include("gender")
+	//source = source.Include("birthdate")
+	//source = source.Include("phone")
+	//source = source.Include("mobile")
+	//source = source.Include("mail")
+	//source = source.Include("lastchange")
+	//source = source.Include("formdatas")
 
-
+	aggregSource := elastic.NewFetchSourceContext(true)
+	aggregSource = aggregSource.Include("id")
+	aggregSource = aggregSource.Include("firstname")
+	aggregSource = aggregSource.Include("surname")
+	aggregSource = aggregSource.Include("married_name")
+	aggregSource = aggregSource.Include("address.street")
+	aggregSource = aggregSource.Include("address.housenumber")
+	aggregSource = aggregSource.Include("address.city")
+	aggregSource = aggregSource.Include("address.postalcode")
+	aggregSource = aggregSource.Include("address.addition")
+	aggregSource = aggregSource.Include("address.latitude")
+	aggregSource = aggregSource.Include("address.longitude")
 
 	// positionner le nombre de résultats attendus : nb de contacts -----------------
 	var size_requete int
@@ -796,12 +810,24 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 
  // address aggs --------------------------------
 
-	 if (args.Search.Fields[1]=="address"){
-		 	logs.Debug("ADD AGGREGATION ADDRESS")
+	 if (args.Search.Fields[1]=="address_aggreg"){
+		 	aggreg_street := elastic.NewTermsAggregation().Field("address.street.strictdata").Size(size_requete)
 		 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(size_requete)
-		 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_requete)
+		 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_requete).FetchSourceContext(aggregSource)
 		 	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
-			searchService.Size(0).Aggregation("result_aggreg", aggreg_lattitude).Sort("surname", true)
+			aggreg_street = aggreg_street.SubAggregation("result_sub_aggreg_latitude", aggreg_lattitude)
+			searchService.Size(0).Aggregation("result_aggreg", aggreg_street).Sort("surname", true)
+			sourceAgg := aggreg_street.Source()
+			data, _ := json.Marshal(sourceAgg)
+			fmt.Println("sourceAgg", string(data))
+	 }else if (args.Search.Fields[1]=="address_tophits"||args.Search.Fields[1]=="address"){
+			 aggreg_lattitude := elastic.NewTermsAggregation().Field("address.latitude").Size(size_requete)
+			 subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_requete).FetchSourceContext(aggregSource)
+			 aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
+			 searchService.Size(0).Aggregation("result_aggreg", aggreg_lattitude).Sort("surname", true)
+			 sourceAgg := aggreg_lattitude.Source()
+			 data, _ := json.Marshal(sourceAgg)
+			 fmt.Println("sourceAgg", string(data))
 	 }else{
 		 	searchService.Size(size_requete).
 		  From(from_requete).
@@ -809,6 +835,24 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		  Pretty(true)
 	 }
 
+	 /*
+	 if (args.Search.Fields[1]=="address"){
+		 	logs.Debug("ADD AGGREGATION ADDRESS")
+		 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.street")
+		 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(size_requete)
+			//subaggreg_unique := elastic.NewTopHitsAggregation()
+		 	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
+			searchService.Size(0).Aggregation("result_aggreg", aggreg_lattitude).Sort("surname", true)
+			sourceAgg := aggreg_lattitude.Source()
+			data, _ := json.Marshal(sourceAgg)
+			fmt.Println("sourceAgg", string(data))
+	 }else{
+		 	searchService.Size(size_requete).
+		  From(from_requete).
+		  Sort(sort, asc).
+		  Pretty(true)
+	 }
+	 */
  //-------------manage polygon Filter--------------------------
 
 
@@ -844,9 +888,11 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		logs.Critical(err)
 		return err
 	}
-	sourceTTT := bq.Source()
-	data, _ := json.Marshal(sourceTTT)
-	fmt.Println("DATA", string(data))
+	sourceQuery := bq.Source()
+	data, _ := json.Marshal(sourceQuery)
+	fmt.Println("sourceQuery", string(data))
+
+
 
 	// traitements des hits --------------------------------
 	if searchResult.Hits != nil {
@@ -862,29 +908,59 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	} else {
 		reply.Contacts = nil
 	}
+
 	// traitement aggrégations -> address aggs -----------------
 	agg, found := searchResult.Aggregations.Terms("result_aggreg")
   if !found {
-    logs.Debug("we sould have a terms aggregation called %q", "aggreg_lattitude")
+    logs.Debug("we sould have a terms aggregation called %q", "aggreg_street")
   }else{
 			if searchResult.Aggregations != nil {
 				for _, bucket := range agg.Buckets {
-					subaggreg_unique, found := bucket.TopHits("result_subaggreg")
-					if found {
-						// pour chaque addresse aggrégée
-						var cs models.AddressAggReply
-						for _, addresse := range subaggreg_unique.Hits.Hits {
-							//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
-							var c models.Contact
-							err := json.Unmarshal(*addresse.Source, &c)
-							if err != nil {
-								logs.Error(err)
-								return err
-							}
-							cs.Contacts = append(cs.Contacts, c)
-						}
-						reply.AddressAggs = append(reply.AddressAggs, cs)
-					}
+
+					if (args.Search.Fields[1]=="address_aggreg"){
+
+								toto, found := bucket.Terms("result_sub_aggreg_latitude")
+								if found {
+													var ff models.AddressStreetAggReply
+													for _, subbucket := range toto.Buckets {
+													//subaggreg_unique, found := bucket.TopHits("result_subaggreg")
+													subaggreg_unique, found := subbucket.TopHits("result_subaggreg")
+													if found {
+														// pour chaque addresse aggrégée
+														var cs models.AddressAggReply
+														for _, addresse := range subaggreg_unique.Hits.Hits {
+															//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+															var c models.Contact
+															err := json.Unmarshal(*addresse.Source, &c)
+															if err != nil {
+																logs.Error(err)
+																return err
+															}
+															cs.Contacts = append(cs.Contacts, c)
+														}
+														ff.Addresses = append(ff.Addresses, cs)
+													}
+												}
+												reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+											}
+										}else{
+															subaggreg_unique, found := bucket.TopHits("result_subaggreg")
+															if found {
+																// pour chaque addresse aggrégée
+																var cs models.AddressAggReply
+																for _, addresse := range subaggreg_unique.Hits.Hits {
+																	//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+																	var c models.Contact
+																	err := json.Unmarshal(*addresse.Source, &c)
+																	if err != nil {
+																		logs.Error(err)
+																		return err
+																	}
+																	cs.Contacts = append(cs.Contacts, c)
+																}
+																reply.AddressAggs = append(reply.AddressAggs, cs)
+															}
+										}
 				}
 			} else {
 				reply.Contacts = nil

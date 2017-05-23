@@ -9,18 +9,18 @@ import (
 
 // Address represents all the components of a contact's address
 type Address struct {
-	ID uint `json:"id"`
+	ID uint `json:"id,omitempty"`
 
 	HouseNumber    string `json:"housenumber,omitempty"`
 	Street         string `json:"street,omitempty"`
 	PostalCode     string `json:"postalcode,omitempty"`
 	CityCode       string `json:"citycode,omitempty"`
 	City           string `json:"city,omitempty"`
-	County         string // Département
-	State          string // Région
-	Country        string
-	Addition       string // Complément d'adresse
-	PollingStation string // Code bureau de vote
+	County         string `json:"county,omitempty"`
+	State          string `json:"state,omitempty"`
+	Country        string `json:"country,omitempty"`
+	Addition       string `json:"addition,omitempty"`
+	PollingStation string `json:"pollingstation,omitempty"`
 
 	Latitude  string `json:"latitude,omitempty"`
 	Longitude string `json:"longitude,omitempty"`
@@ -30,16 +30,16 @@ type Address struct {
 // Contact represents all the components of a contact
 type Contact struct {
 	ID           uint       `gorm:"primary_key" json:"id"`
-	Firstname    string     `sql:"not null" json:"firstname"`
-	Surname      string     `json:"surname"`
+	Firstname    string     `sql:"not null" json:"firstname,omitempty"`
+	Surname      string     `json:"surname,omitempty"`
 	MarriedName  *string    `db:"married_name" json:"married_name,omitempty"`
 	Gender       *string    `json:"gender,omitempty"`
 	Birthdate    *time.Time `json:"birthdate,omitempty"`
-	AgeCategory	 uint    		`json:"age_category"`
-	BirthDept    *string    `json:"birthdept"`
-	BirthCity    *string    `json:"birthcity"`
-	BirthCountry *string    `json:"birthcountry"`
-	Mail         *string    `json:"mail"`
+	AgeCategory	 uint    		`json:"age_category,omitempty"`
+	BirthDept    *string    `json:"birthdept,omitempty"`
+	BirthCity    *string    `json:"birthcity,omitempty"`
+	BirthCountry *string    `json:"birthcountry,omitempty"`
+	Mail         *string    `json:"mail,omitempty"`
 	Phone        *string    `json:"phone,omitempty"`
 	Mobile       *string    `json:"mobile,omitempty"`
 	Address      Address    `json:"address,omitempty"`
@@ -48,7 +48,7 @@ type Contact struct {
 	LastChange    *time.Time `json:"lastchange,omitempty"`
 	LastChangeUserID    uint `json:"lastchangeuserid,omitempty"`
 
-	GroupID uint `sql:"not null" db:"group_id" json:"group_id"`
+	GroupID uint `sql:"not null" db:"group_id" json:"group_id,omitempty"`
 
 	Notes     []Note     `json:"notes,omitempty"`
 	Tags      []Tag      `json:"tags,omitempty" gorm:"many2many:contact_tags;"`

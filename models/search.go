@@ -30,9 +30,14 @@ type SearchReply struct {
 	Facts       []Fact
 	IDs         []uint
 	AddressAggs []AddressAggReply
+	AddressStreetAggs []AddressStreetAggReply
 	Kpi 	    []KpiAggs
 }
 
 type AddressAggReply struct {
 	Contacts []Contact
+}
+
+type AddressStreetAggReply struct {
+	Addresses []AddressAggReply
 }
