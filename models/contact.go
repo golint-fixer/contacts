@@ -48,7 +48,8 @@ type Contact struct {
 	LastChange    *time.Time `json:"lastchange,omitempty"`
 	LastChangeUserID    uint `json:"lastchangeuserid,omitempty"`
 
-	GroupID uint `sql:"not null" db:"group_id" json:"group_id,omitempty"`
+	GroupID uint `sql:"not null" db:"group_id" json:"group_id"`
+	UserID uint `db:"user_id" json:"user_id,omitempty"`
 
 	Notes     []Note     `json:"notes,omitempty"`
 	Tags      []Tag      `json:"tags,omitempty" gorm:"many2many:contact_tags;"`
