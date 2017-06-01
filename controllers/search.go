@@ -754,6 +754,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	aggregSource = aggregSource.Include("address.Addition")
 	aggregSource = aggregSource.Include("address.latitude")
 	aggregSource = aggregSource.Include("address.longitude")
+	aggregSource = aggregSource.Include("formdatas")
+
 
 	aggregSource_sub := elastic.NewFetchSourceContext(true)
 	aggregSource_sub = aggregSource_sub.Include("address.street")
@@ -821,8 +823,8 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 
 	 if (args.Search.Fields[1]=="address_aggreg"){
 			 	aggreg_street := elastic.NewTermsAggregation().Field("address.street.strictdata").Size(size_requete)
-			 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.location.strictdata").Size(1000)
-			 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(1000).FetchSourceContext(aggregSource)
+			 	aggreg_lattitude := elastic.NewTermsAggregation().Field("address.location.strictdata").Size(500)
+			 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(10).FetchSourceContext(aggregSource)
 			 	aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
 				aggreg_street = aggreg_street.SubAggregation("result_sub_aggreg_latitude", aggreg_lattitude)
 				searchService.Size(0).Aggregation("result_aggreg", aggreg_street).Sort("surname", true)
@@ -836,7 +838,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 			 aggreg_housenumber := elastic.NewTermsAggregation().Size(size_requete).Script("try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }")
 			 //"script": "try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }"
 			 //aggreg_lattitude := elastic.NewTermsAggregation().Field("address.location.strictdata").Size(size_requete)
-			 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(1000).FetchSourceContext(aggregSource).Sort("address.location.strictdata",true)
+			 	subaggreg_unique := elastic.NewTopHitsAggregation().Size(10).FetchSourceContext(aggregSource).Sort("address.location.strictdata",true)
 			 //aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
 
 			 aggreg_housenumber = aggreg_housenumber.SubAggregation("result_sub_aggreg_housenumber", subaggreg_unique)
@@ -847,9 +849,81 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 			 fmt.Println("sourceAgg", string(data))
 
 	 }else if (args.Search.Fields[1]=="address_aggreg_first_part"){
+		 	//elasticsearch request:
+			/*
+	{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "multi_match": {
+            "fields": [
+              "address.street",
+              "address.housenumber",
+              "address.city"
+            ],
+            "operator": "and",
+            "query": "ara",
+            "tie_breaker": 0,
+            "type": "cross_fields"
+          }
+        },
+        {
+          "term": {
+            "group_id": "1003"
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "street": {
+      "terms": {
+        "field": "address.street.strictdata",
+        "size": 20
+      },
+      "aggs": {
+        "house": {
+          "terms": {
+            "script": "try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }",
+            "size": 20,
+            "order": {
+              "_term": "desc"
+            }
+          },
+          "aggs": {
+            "latitude": {
+              "top_hits": {
+                "size": 2000,
+                "sort": "address.location.strictdata",
+                "_source": [
+                  "id",
+                  "surname",
+                  "address.id",
+                  "address.housenumber",
+                  "address.street",
+                  "address.city",
+                  "address.postalcode",
+                  "address.latitude"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "from": 0,
+  "size": 0,
+  "sort": [
+    "address.street",
+    "address.housenumber"
+  ]
+}
+			*/
 			aggreg_street := elastic.NewTermsAggregation().Field("address.street.strictdata").Size(size_requete)
-			aggreg_housenumber := elastic.NewTermsAggregation().Size(1000).Script("try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }")
-			subaggreg_unique := elastic.NewTopHitsAggregation().Size(1000).FetchSourceContext(aggregSource_sub).Sort("address.location.strictdata",true)
+			aggreg_housenumber := elastic.NewTermsAggregation().Size(400).Script("try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }")
+			subaggreg_unique := elastic.NewTopHitsAggregation().Size(1).FetchSourceContext(aggregSource_sub).Sort("address.location.strictdata",true)
 
 			aggreg_housenumber = aggreg_housenumber.SubAggregation("result_sub_aggreg_housenumber", subaggreg_unique)
 			aggreg_street = aggreg_street.SubAggregation("result_sub_aggreg_street", aggreg_housenumber)
