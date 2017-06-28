@@ -16,7 +16,8 @@ import (
 	"github.com/quorumsco/contacts/controllers"
 	"github.com/quorumsco/contacts/models"
 	"github.com/quorumsco/databases"
-	"github.com/quorumsco/elastic"
+	//"github.com/quorumsco/elastic"
+	elastic "gopkg.in/olivere/elastic.v2"
 	"github.com/quorumsco/logs"
 	"github.com/quorumsco/settings"
 )
@@ -148,7 +149,7 @@ func dialElasticRetry(address string) (*elastic.Client, error) {
 	var i int
 retry:
 	for {
-		client, err = elastic.NewClient(elastic.SetURL(address), elastic.SetSniff(false))
+		client, err = elastic.NewClient(elastic.SetSniff(false), elastic.SetURL(address))
 		switch {
 		case err == nil:
 			break retry
