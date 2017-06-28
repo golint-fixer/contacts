@@ -50,6 +50,8 @@ type Contact struct {
 
 	GroupID uint `sql:"not null" db:"group_id" json:"group_id"`
 	UserID uint `db:"user_id" json:"user_id,omitempty"`
+	UserSurname uint `db:"user_surname" json:"user_surname,omitempty"`
+	UserFirstname uint `db:"user_firstname" json:"user_firstname,omitempty"`
 
 	Notes     []Note     `json:"notes,omitempty"`
 	Tags      []Tag      `json:"tags,omitempty" gorm:"many2many:contact_tags;"`

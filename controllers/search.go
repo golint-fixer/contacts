@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/quorumsco/contacts/models"
-	"github.com/quorumsco/elastic"
+	//"github.com/quorumsco/elastic"
+	elastic "gopkg.in/olivere/elastic.v2"
 	"github.com/quorumsco/logs"
 )
 
@@ -734,6 +735,12 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	source = source.Include("address.latitude")
 	source = source.Include("address.longitude")
 	source = source.Include("address.Addition")
+	source = source.Include("mail")
+	source = source.Include("lastchange")
+	source = source.Include("user_id")
+	source = source.Include("user_surname")
+	source = source.Include("user_firstname")
+
 	//source = source.Include("gender")
 	//source = source.Include("birthdate")
 	//source = source.Include("phone")
