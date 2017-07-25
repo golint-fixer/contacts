@@ -32,6 +32,8 @@ type SearchReply struct {
 	AddressAggs []AddressAggReply
 	AddressStreetAggs []AddressStreetAggReply
 	Kpi 	    []KpiAggs
+	Aggregation [][]string
+	Data        []GenericMap
 }
 
 type AddressAggReply struct {
@@ -40,4 +42,9 @@ type AddressAggReply struct {
 
 type AddressStreetAggReply struct {
 	Addresses []AddressAggReply
+}
+
+type GenericMap struct {
+	Key string
+	Value string
 }
