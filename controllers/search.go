@@ -1444,6 +1444,692 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	return nil
 }
 
+func (s *Search) AggregationContacts(args models.SearchArgs, reply *models.SearchReply) error {
+	// Groups are:
+	// 1. user_id
+	// 2. Date: group by week
+	// 3. name_presence (in form_data)
+
+	groupIdStr := args.Search.Fields[0]
+
+	presenceFormId := -1
+	if len(args.Search.Fields) > 1 {
+		var err error
+		presenceFormId, err = strconv.Atoi(args.Search.Fields[1])
+		if err != nil {
+			logs.Error(err)
+			presenceFormId = -1
+		}
+	}
+
+	bq := elastic.NewBoolQuery() //elastic.BoolQuery
+	bq = bq.Must(elastic.NewTermQuery("group_id", groupIdStr))
+
+	/* Filter by date */
+	// get min and max dates, either from fields or from the oldest and newest contacts
+	minDate := time.Time{}
+	maxDate := time.Time{}
+	// passedInterval indicates whether the aggregation query was called with a date interval
+	// this controls whether a range filter will be added to the query, which eliminates entries with
+	// missing dates
+	passedInterval := false
+	timeFormat := "2006-01-02"
+	if (len(args.Search.Fields) > 3 && args.Search.Fields[2] != "" && args.Search.Fields[3] != "") {
+		// expects the time in the timeFormat yyyy-mm-dd
+		var err error
+		minDate, err = time.Parse(timeFormat, args.Search.Fields[2])
+		if err != nil {
+			minDate = time.Time{};
+			logs.Error(err)
+		}
+		maxDate, err = time.Parse(timeFormat, args.Search.Fields[3] )
+		if err != nil {
+			maxDate = time.Time{};
+			logs.Error(err)
+		}
+	}
+	// if the dates were not passed, or there was an error parsing them, then set them to the first
+	// and last  lastchange date 
+	if (minDate == time.Time{} || maxDate == time.Time{}) {
+		// get newest contact's lastchange time
+		newestSearch := s.Client.Search().
+			Index("contacts").
+			Size(1).
+			Sort("lastchange", false)
+
+		newestSearch.Query(&bq)
+		newestResult, err := newestSearch.Do()
+
+		if err != nil {
+			logs.Error(err)
+			return err
+		}
+
+		if newestResult.Hits != nil {
+			for _, hit := range newestResult.Hits.Hits {
+				var c models.Contact
+				err := json.Unmarshal(*hit.Source, &c)
+				if err != nil {
+					logs.Error(err)
+					return err
+				}
+				maxDate = *c.LastChange//.Format(timeFormat)
+			}
+		} else {
+			message := "Should have gotten one hit when sorting by newest contacts"
+			logs.Error(message)
+			return errors.New(message)
+		}
+
+		// get oldest contact's lastchange time
+		oldestSearch := s.Client.Search().
+			Index("contacts").
+			Size(1).
+			Sort("lastchange", true)
+
+		oldestSearch.Query(&bq)
+		oldestResult, err := oldestSearch.Do()
+
+		if err != nil {
+			logs.Error(err)
+			return err
+		}
+
+		if oldestResult.Hits != nil {
+			for _, hit := range oldestResult.Hits.Hits {
+				var c models.Contact
+				err := json.Unmarshal(*hit.Source, &c)
+				if err != nil {
+					logs.Error(err)
+					return err
+				}
+				minDate = *c.LastChange//.Format(timeFormat)
+			}
+		} else {
+			message := "Should have gotten one hit when sorting by oldest contacts"
+			logs.Error(message)
+			return errors.New(message)
+		}
+	} else {
+		passedInterval = true
+	}
+
+	if (passedInterval) {
+		// The min and maxDates, if passed, should be an inclusive range.  Since only dates are passed (no times)
+		// include the entire day.  So, use a Lt on the maxDate after adding one day, to include the entire maxDate
+		bq = bq.Must(elastic.NewRangeQuery("lastchange").Gte(minDate).Lt(maxDate.AddDate(0,0,1)))
+	}
+
+	// 1. user_id
+	aggreg_user_id := elastic.NewTermsAggregation().Field("user_id")
+	aggreg_user_id_missing := elastic.NewMissingAggregation().Field("user_id")
+
+	// 2. Date
+	// TODO - find a more precise value for this, kind of arbitrary
+	maxDateBuckets := 41 // 41 = 7 * 6 - 1, so at least 6 weeks will be shown (or months, years...)
+	// Choose the finest window where the number of buckets does not exceed maxDateBuckets
+	numHours := maxDate.Sub(minDate).Hours()
+	// Doesn't need to be exact, so use approximation conversions
+	numDays := int(numHours / 24)
+	numWeeks := int(numDays / 7)
+	numMonths := int(numDays / 30)
+	interval := "year"
+	if (numMonths <= maxDateBuckets) {
+		if (numWeeks <= maxDateBuckets) {
+			if (numDays <= maxDateBuckets) {
+				interval = "day"
+			} else {
+				interval = "week"
+			}
+		} else {
+			interval = "month"
+		}
+	}
+
+	// may be a better place to store this, but send the time start/end and intrval information via kpi
+	// this should be the 0th KPI in the array
+	var dateData = []models.GenericMap {
+		models.GenericMap{
+			Key : "minDate",
+			Value : minDate.Format(timeFormat),
+		},
+		models.GenericMap{
+			Key : "maxDate",
+			Value : maxDate.Format(timeFormat),
+		},
+		models.GenericMap{
+			Key : "interval",
+			Value : interval,
+		},
+	}
+	reply.Data=append(reply.Data, dateData...)
+
+	aggreg_date := elastic.NewDateHistogramAggregation().Field("lastchange").Interval(interval).MinDocCount(0).ExtendedBoundsMin(minDate).ExtendedBoundsMax(maxDate)
+	aggreg_date_missing := elastic.NewMissingAggregation().Field("lastchange")
+
+	// 3. name_presence
+	aggreg_presence := elastic.NewNestedAggregation().Path("formdatas").SubAggregation("filtered_formdatas", 
+		elastic.NewFilterAggregation().Filter(elastic.NewTermQuery("formdatas.form_id", presenceFormId)).SubAggregation("presence", 
+			elastic.NewTermsAggregation().Field("formdatas.data.strictdata")))
+	aggreg_presence_missing := elastic.NewFilterAggregation().Filter(elastic.NewNotFilter(elastic.NewTermQuery("formdatas.form_id", presenceFormId)))
+
+	// Want these to all be sub aggregations, but for each we need two (missing/not missing)
+	// tier order is user, date, presence; build up from bottom
+	// bottom sub aggregation - presence
+	agg_presence_sub := aggreg_presence
+	agg_presence_m_sub := aggreg_presence_missing
+	// date
+	agg_date_sub := aggreg_date.SubAggregation("presence_agg", agg_presence_sub).SubAggregation("presence_m_agg", agg_presence_m_sub)
+	agg_date_m_sub := aggreg_date_missing.SubAggregation("presence_agg", agg_presence_sub).SubAggregation("presence_m_agg", agg_presence_m_sub)
+	// top sub aggregation - user
+	agg_user_sub := aggreg_user_id.SubAggregation("date_agg", agg_date_sub).SubAggregation("date_m_agg", agg_date_m_sub)
+	agg_user_m_sub := aggreg_user_id_missing.SubAggregation("date_agg", agg_date_sub).SubAggregation("date_m_agg", agg_date_m_sub)
+	
+	// want all of these to be sub filters; root with user/user missing
+	searchService := s.Client.Search().
+		Index("contacts").
+		Size(0).
+		Aggregation("user_agg", agg_user_sub).
+		Aggregation("user_m_agg", agg_user_m_sub)
+
+	/* Filter by location */
+	// northeast lat, lng (top left) should be args.Search.Fields[4] and [5] (after group_id, presenceFormId and date)
+	// southwest lat, lng (top left) should be args.Search.Fields[6] and [7]
+	var filter *elastic.GeoPolygonFilter
+	if (len(args.Search.Fields) > 7) {
+		filter = GetLocationFilter(args.Search.Fields[4], args.Search.Fields[5], args.Search.Fields[6], args.Search.Fields[7])
+	}
+	if filter != nil {
+		searchService = searchService.Query(elastic.NewFilteredQuery(bq).Filter(*filter))
+	} else {
+		searchService = searchService.Query(&bq)
+	}
+
+	searchResult, err := searchService.Do()
+
+	if err != nil {
+		logs.Error(err)
+		return err
+	}
+
+	// searchResult is now a hierarchical structure
+	// parse it to become columns of aggregated data
+	// to make it generic, this means simply being a 2D arrray of string
+	// For each entry (row), the first n entries specify the aggregation (for example, userId, lastchange, and presence), and the 
+	// last entry is a string of the integer count
+	// This is a convenient way to store what is effectively a table
+	ParseElasticAggregationLevels(searchResult.Aggregations, reply, []string{"user", "date", "presence"}, []string{});
+
+	return nil
+}
+
+func (s *Search) DateAggregationContacts(args models.SearchArgs, reply *models.SearchReply) error {
+	groupIdStr := args.Search.Fields[0] 
+
+	bq := elastic.NewBoolQuery()
+	bq = bq.Must(elastic.NewTermQuery("group_id", groupIdStr))
+
+	aggreg_date := elastic.NewDateHistogramAggregation().Field("lastchange").Interval("day").MinDocCount(0)
+	date_key := "date_agg"
+	searchService := s.Client.Search().
+		Index("contacts").
+		Size(0).
+		Aggregation(date_key, aggreg_date)
+
+	searchService.Query(&bq)
+	searchResult, err := searchService.Do()
+
+	if err != nil {
+		logs.Error(err)
+		return err
+	}
+
+	date_agg, found_date := searchResult.Aggregations.DateHistogram(date_key)
+	if !found_date {
+		logs.Error("we should have a date histogram aggregation called %q", date_key)
+	}
+
+	var kpiAggs models.KpiAggs
+	for _, bucket := range date_agg.Buckets {
+		var kpiAtom models.KpiReply
+		kpiAtom.Key = *bucket.KeyAsString
+		kpiAtom.Doc_count = bucket.DocCount
+		kpiAggs.KpiReplies=append(kpiAggs.KpiReplies, kpiAtom)
+	}
+	reply.Kpi=append(reply.Kpi, kpiAggs)
+
+	return nil
+}
+
+func (s *Search) LocationSummeryContacts(args models.SearchArgs, reply *models.SearchReply) error {
+	groupIdStr := args.Search.Fields[0] 
+
+	presenceFormId := -1
+	if len(args.Search.Fields) > 1 {
+		var err error
+		presenceFormId, err = strconv.Atoi(args.Search.Fields[1])
+		if err != nil {
+			logs.Error(err)
+			presenceFormId = -1
+		}
+	}
+
+	bq := elastic.NewBoolQuery()
+	bq = bq.Must(elastic.NewTermQuery("group_id", groupIdStr))
+
+	/* Filters */
+	// query can be optionally flitered by location (bounding box of map, passed as 1-4th arguments)
+	// and optionally by other filter parameters (like date, user, presence) from crossfilter
+	// nested and non-nested filters must be treated differently; nested filters must be done in a bool query,
+	// whereas non-nested filters must be done in a bool filter
+	// (elastic 1.7 only allows a "missing" search in a bool filter, and a must_not match in a query, to handle
+	// missing searches)
+
+	/* Filter by date */
+	var dateFilter *elastic.RangeQuery
+	if (len(args.Search.Fields) > 3) {
+		dateFilter = GetDateFilter(args.Search.Fields[2], args.Search.Fields[3])
+	}
+
+	// add the dateFilter to bq, if it exists
+	if dateFilter != nil {
+		bq = bq.Must(*dateFilter)
+	}
+
+	// Now, set up the boolFilter
+	// first, generate a filtered query for the non-nested (topLevel) filters like user, geoPosition, etc.
+	boolFilter := elastic.NewBoolQuery()
+	// elastic complains if there's an empty bool query, so track if anything is added to boolFilter
+	boolFilterExists := false
+
+	/* Filter by location */
+	// northeast lat, lng (top left) should be args.Search.Fields[4] and [5] (after group_id, presenceFormId and dates)
+	// southwest lat, lng (top left) should be args.Search.Fields[6] and [7]
+	var geoFilter *elastic.GeoPolygonFilter
+	if (len(args.Search.Fields) > 7) {
+		geoFilter = GetLocationFilter(args.Search.Fields[4], args.Search.Fields[5], args.Search.Fields[6], args.Search.Fields[7])
+	}
+
+	// add the geoFilter to boolFilter, if it exists
+	if geoFilter != nil {
+		boolFilter = boolFilter.Must(*geoFilter)
+		boolFilterExists = true
+	}
+
+	// parse the remaining
+	fieldsSeparator := ";"
+	fieldMissing := "N/A"
+	// filters will be in the 7th and later fields array, (first 7 are group_id, location, and date)
+	for i := 8; i < len(args.Search.Fields); i++ {
+		if (args.Search.Fields[i] != "") {
+			fields := strings.Split(args.Search.Fields[i], fieldsSeparator)
+
+			// parse the filters
+			filterType := fields[0]
+			includeMissing := false
+			filters := fields[1:]
+			for i := 1; i < len(fields); i++ {
+				if (fields[i] == fieldMissing) {
+					includeMissing = true;
+					filters = append(fields[1:i], fields[i+1:]...)
+					break;
+				}
+			}
+
+			// (currently) the only valid top level filter is user:
+			if (filterType == "user") {
+				userBool := elastic.NewBoolQuery()
+				userFilterExist := false
+				
+				for j := 0; j < len(filters); j++ {
+					userBool = userBool.Should(elastic.NewTermQuery("user_id", filters[j]))
+					boolFilterExists = true
+					userFilterExist = true
+				}
+
+				if includeMissing {
+					userBool = userBool.Should(elastic.NewMissingFilter("user_id"))
+					boolFilterExists = true
+					userFilterExist = true
+				}
+
+				if userFilterExist {
+					boolFilter = boolFilter.Must(userBool)
+				}
+			}
+
+			// (currently) the only valid nested filter is presence
+			if (filterType == "presence") {
+				presenceBool := elastic.NewBoolQuery();
+				presenceFilterExist := false
+
+				if len(filters) > 0 {
+					nestedBool := elastic.NewBoolQuery();
+
+					for j := 0; j < len(filters); j++ {
+						nestedBool = nestedBool.Should(elastic.NewTermQuery("formdatas.data.strictdata", filters[j]))
+					}
+
+					// nested path is the formdatas array
+					nestedFilter := elastic.NewNestedFilter("formdatas").
+						Filter(nestedBool)
+					
+					presenceBool = presenceBool.Should(nestedFilter)
+
+					presenceFilterExist = true
+				}
+
+				if includeMissing {
+					matchQuery := elastic.NewMatchQuery("formdatas.data.strictdata", presenceFormId)
+					presenceBool = presenceBool.Should(elastic.NewBoolQuery().MustNot(matchQuery))
+					presenceFilterExist = true
+				}
+
+				if presenceFilterExist {
+					bq = bq.Must(presenceBool)
+				}
+			}
+		}
+	}
+	
+	countSearch := s.Client.Count().
+		Index("contacts")
+
+	if boolFilterExists {
+		countSearch = countSearch.Query(elastic.NewFilteredQuery(bq).Filter(boolFilter))
+	} else {
+		countSearch = countSearch.Query(bq)
+	}
+
+	/* Count of contacts matching filter */
+	totalResults, err := countSearch.Do()
+	if err != nil {
+		logs.Error(err)
+		return err
+	}
+
+	reply.Data=append(reply.Data, models.GenericMap{
+			Key : "totalResults",
+			Value : strconv.FormatInt(totalResults, 10),
+		})
+
+	/* Random search of contacts */
+	// max number of contacts to send over the network
+	maxNumResults := 500
+	numResults := int(totalResults)
+	if numResults > maxNumResults {
+		numResults = maxNumResults
+	}
+
+	random := elastic.NewRandomFunction()
+	functionScoreQuery := elastic.NewFunctionScoreQuery().
+		AddScoreFunc(random)
+
+	if boolFilterExists {
+		functionScoreQuery = functionScoreQuery.Query(elastic.NewFilteredQuery(bq).Filter(boolFilter))
+	} else {
+		functionScoreQuery = functionScoreQuery.Query(bq)
+	}
+
+	source := elastic.NewFetchSourceContext(true).
+		Include("group_id").
+		Include("address.latitude").
+		Include("address.longitude")
+
+	searchService := s.Client.Search().
+		Index("contacts").
+		Size(numResults).
+		FetchSourceContext(source).
+		Query(functionScoreQuery)
+
+	searchResult, err := searchService.Do()
+
+	if err != nil {
+		logs.Error(err)
+		return err
+	}
+
+	if searchResult.Hits != nil {
+		for _, hit := range searchResult.Hits.Hits {
+			var c models.Contact
+			err := json.Unmarshal(*hit.Source, &c)
+			if err != nil {
+				logs.Error(err)
+				return err
+			}
+			reply.Contacts = append(reply.Contacts, c)
+		}
+	} else {
+		reply.Contacts = nil
+	}
+
+	return nil
+}
+
+func GetLocationFilter(neLatStr string, neLngStr string, swLatStr string, swLngStr string) *elastic.GeoPolygonFilter {
+	// first an easy check - make sure none of the strings are empty
+	if (neLatStr == "" || neLngStr == "" || swLatStr == "" || swLngStr == "") {
+		return nil
+	}
+
+	validBoundary := true;
+	neLat, err := strconv.ParseFloat(neLatStr, 64)
+	if err != nil {
+		logs.Error(err)
+		validBoundary = false;
+	}
+
+	neLng, err := strconv.ParseFloat(neLngStr, 64)
+	if err != nil {
+		logs.Error(err)
+		validBoundary = false;
+	}
+
+	swLat, err := strconv.ParseFloat(swLatStr, 64)
+	if err != nil {
+		logs.Error(err)
+		validBoundary = false;
+	}
+
+	swLng, err := strconv.ParseFloat(swLngStr, 64)
+	if err != nil {
+		logs.Error(err)
+		validBoundary = false;
+	}
+
+	if (validBoundary) {
+		// elastic.v2 has no GeoBoundingBox, so use a GeoPolygonFilter
+		// this may be slower (not sure if significant), TODO analyze
+		filter := elastic.NewGeoPolygonFilter("address.location").
+			AddPoint(elastic.GeoPointFromLatLon(neLat, neLng)).
+			AddPoint(elastic.GeoPointFromLatLon(neLat, swLng)).
+			AddPoint(elastic.GeoPointFromLatLon(swLat, swLng)).
+			AddPoint(elastic.GeoPointFromLatLon(swLat, neLng))
+		return &filter
+	}
+
+	return nil
+}
+
+// try to parse the min and max dates from the passed fields if they are 
+// valid dates, return a rangeFilter pointer, otherwise return nil the dates
+// should be strings in the format timeFormat (defined below as "2006-01-02")
+func GetDateFilter(minDateStr string, maxDateStr string) *elastic.RangeQuery {
+	validDates := true
+	timeFormat := "2006-01-02"
+	
+	// expects the time in the timeFormat yyyy-mm-dd
+	minDate, err := time.Parse(timeFormat, minDateStr)
+	if err != nil {
+		logs.Error(err)
+		validDates = false
+	}
+	maxDate, err := time.Parse(timeFormat, maxDateStr)
+	if err != nil {
+		logs.Error(err)
+		validDates = false
+	}
+
+	if validDates {
+		// The min and maxDates, if given, should be an inclusive range.  Since only dates are passed (no times)
+		// include the entire day.  So, use a Lt on the maxDate after adding one day, to include the entire maxDate
+		rangeFilter := elastic.NewRangeQuery("lastchange").Gte(minDate).Lt(maxDate.AddDate(0,0,1))
+		return &rangeFilter
+	}
+
+	return nil
+}
+
+// This function parses an aggregations, traversing through the sub aggregations according to the order array and accumulating the fields
+// in aggAccumulator, writing the result to reply.Aggregations when the end of order has been reached
+// It uses a switch to choose which helper funciton to run to parse the current level (TODO - could be improved, string switch feels brittle)
+func ParseElasticAggregationLevels(aggs elastic.Aggregations, reply *models.SearchReply, order []string, aggAccumulator []string) error {
+	if len(order) <= 0 {
+		logs.Error("ParseElasticAggregationLevels was called with no levels!")
+		return nil // TODO - should be an error
+	} else {
+		level, order := order[0], order[1:]
+		
+		// TODO - don't think this is the best method
+		switch level {
+			case "user":
+				return ParseUsers(aggs, reply, order, aggAccumulator)
+			case "date":
+				return ParseDates(aggs, reply, order, aggAccumulator)
+			case "presence":
+				return ParsePresences(aggs, reply, order, aggAccumulator)
+			default: 
+				logs.Error("%q is not a valid level to parse", level)
+				return nil // TODO - should be an error
+		}
+	}
+}
+
+// these functions rely on the naming convention from AggregationContacts; this makes it brittle
+// TODO - find safer way of parsing this
+func ParseUsers(aggs elastic.Aggregations, reply *models.SearchReply, order []string, aggAccumulator []string) error {
+	user_key := "user_agg"
+	user_missing_key := "user_m_agg"
+
+	var ac []string
+
+	user_agg, found_user := aggs.Terms(user_key)
+	if !found_user {
+		logs.Error("we should have a terms aggregation called %q", user_key)
+	}
+
+	for _, bucket := range user_agg.Buckets {
+		ac = append(aggAccumulator, strconv.FormatFloat(bucket.Key.(float64), 'f', -1, 64))
+		if len(order) <= 0 {
+			ac = append(ac, strconv.FormatInt(bucket.DocCount, 10))
+			reply.Aggregation = append(reply.Aggregation, append(ac))
+		} else {
+			ParseElasticAggregationLevels(bucket.Aggregations, reply, order, ac)
+		}
+	}
+
+	user_m_agg, found_user_m := aggs.Missing(user_missing_key)
+	if !found_user_m {
+		logs.Error("we should have a missing aggregation called %q", user_missing_key)
+	}
+
+	ac = append(aggAccumulator, "N/A")
+	if len(order) <= 0 {
+		ac = append(ac, strconv.FormatInt(user_m_agg.DocCount, 10))
+		reply.Aggregation = append(reply.Aggregation, append(ac))
+	} else {
+		ParseElasticAggregationLevels(user_m_agg.Aggregations, reply, order, ac)
+	}
+
+	return nil
+}
+
+func ParseDates(aggs elastic.Aggregations, reply *models.SearchReply, order []string, aggAccumulator []string) error {
+	date_key := "date_agg"
+	date_missing_key := "date_m_agg"
+
+	var ac []string
+
+	date_agg, found_date := aggs.DateHistogram(date_key)
+	if !found_date {
+		logs.Error("we should have a date histogram aggregation called %q", date_key)
+	}
+
+	for _, bucket := range date_agg.Buckets {
+		ac = append(aggAccumulator, *bucket.KeyAsString)
+		if len(order) <= 0 {
+			ac = append(ac, strconv.FormatInt(bucket.DocCount, 10))
+			reply.Aggregation = append(reply.Aggregation, append(ac))
+		} else {
+			ParseElasticAggregationLevels(bucket.Aggregations, reply, order, ac)
+		}
+	}
+
+	date_m_agg, found_date_m := aggs.Missing(date_missing_key)
+	if !found_date_m {
+		logs.Error("we should have a missing aggregation called %q", date_missing_key)
+	}
+
+	ac = append(aggAccumulator, "N/A")
+	if len(order) <= 0 {
+		ac = append(ac, strconv.FormatInt(date_m_agg.DocCount, 10))
+		reply.Aggregation = append(reply.Aggregation, append(ac))
+	} else {
+		ParseElasticAggregationLevels(date_m_agg.Aggregations, reply, order, ac)
+	}
+
+	return nil
+}
+
+func ParsePresences(aggs elastic.Aggregations, reply *models.SearchReply, order []string, aggAccumulator []string) error {
+	presence_key := "presence_agg"
+	presence_filtered_key := "filtered_formdatas"
+	presence_formdatas_key := "presence"
+	presence_missing_key := "presence_m_agg"
+
+	var ac []string
+
+	presence_agg, found_presence := aggs.Nested(presence_key)
+	if !found_presence {
+		logs.Error("we should have a nested aggregation called %q", presence_key)
+	}
+
+	filtered_formdatas, found_filtered := presence_agg.Aggregations.Filter(presence_filtered_key)
+	if !found_filtered {
+		logs.Error("we should have a terms aggregation called %q", presence_filtered_key)
+	}
+
+	presence, found_presence := filtered_formdatas.Aggregations.Terms(presence_formdatas_key)
+	if !found_presence {
+		logs.Error("we should have a terms aggregation called %q", presence_formdatas_key)
+	}
+
+	for _, bucket := range presence.Buckets {
+		ac = append(aggAccumulator, bucket.Key.(string))
+		if len(order) <= 0 {
+			ac = append(ac, strconv.FormatInt(bucket.DocCount, 10))
+			reply.Aggregation = append(reply.Aggregation, append(ac))
+		} else {
+			ParseElasticAggregationLevels(presence.Aggregations, reply, order, ac)
+		}
+	}
+
+	presence_m_agg, found_presence_m := aggs.Filter(presence_missing_key)
+	if !found_presence_m {
+		logs.Error("we should have a filter aggregation called %q", presence_missing_key)
+	}
+
+	ac = append(aggAccumulator, "N/A")
+	if len(order) <= 0 {
+		ac = append(ac, strconv.FormatInt(presence_m_agg.DocCount, 10))
+		reply.Aggregation = append(reply.Aggregation, append(ac))
+	} else {
+		ParseElasticAggregationLevels(presence_m_agg.Aggregations, reply, order, ac)
+	}
+
+	return nil
+}
+
 // SearchAddressesAggs performs a cross_field search request to elasticsearch and returns the results via RPC
 // search sur le firstname, surname, street et city. Les résultats renvoyés sont globaux.
 // exemple de requête elastic exécutée:

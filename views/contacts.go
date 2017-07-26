@@ -24,3 +24,13 @@ type AddressStreetAggs struct {
 type Kpi struct {
 	Kpi []models.KpiAggs `json:"kpi"`
 }
+
+type Aggregation struct {
+	Aggregation [][]string `json:"aggregation"`
+	Data        []models.GenericMap `json:"data"`
+}
+
+type LocationSummary struct {
+	Contacts []models.Contact `json:"contacts"`
+	Data     []models.GenericMap `json:"data"`
+}
