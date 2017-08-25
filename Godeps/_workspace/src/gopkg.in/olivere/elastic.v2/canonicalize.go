@@ -14,19 +14,41 @@ import "net/url"
 // Example:
 // http://127.0.0.1:9200/?query=1 -> http://127.0.0.1:9200
 // http://127.0.0.1:9200/db1/ -> http://127.0.0.1:9200/db1
+
+// func canonicalize(rawurls ...string) []string {
+// 	var canonicalized []string
+// 	for _, rawurl := range rawurls {
+// 		u, err := url.Parse(rawurl)
+// 		if err == nil {
+// 			if u.Scheme == "http" || u.Scheme == "https" {
+// 				// Trim trailing slashes
+// 				for len(u.Path) > 0 && u.Path[len(u.Path)-1] == '/' {
+// 					u.Path = u.Path[0 : len(u.Path)-1]
+// 				}
+// 				u.Fragment = ""
+// 				u.RawQuery = ""
+// 				canonicalized = append(canonicalized, u.String())
+// 			}
+// 		}
+// 	}
+// 	return canonicalized
+// }
+
 func canonicalize(rawurls ...string) []string {
-	var canonicalized []string
+	canonicalized := make([]string, 0)
 	for _, rawurl := range rawurls {
 		u, err := url.Parse(rawurl)
-		if err == nil {
-			if u.Scheme == "http" || u.Scheme == "https" {
-				// Trim trailing slashes
-				for len(u.Path) > 0 && u.Path[len(u.Path)-1] == '/' {
-					u.Path = u.Path[0 : len(u.Path)-1]
-				}
-				u.Fragment = ""
-				u.RawQuery = ""
-				canonicalized = append(canonicalized, u.String())
+		if err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+			u.Fragment = ""
+			u.Path = ""
+			u.RawQuery = ""
+			canonicalized = append(canonicalized, u.String())
+		} else if err == nil {
+			host := strings.Split(rawurl, ":")
+			addrs, err := net.LookupHost(host[0])
+			if err == nil {
+				addr := fmt.Sprintf("%s:%s", addrs[0], host[1])
+				canonicalized = append(canonicalized, fmt.Sprintf("http://%s", addr))
 			}
 		}
 	}
