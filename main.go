@@ -16,10 +16,9 @@ import (
 	"github.com/quorumsco/contacts/controllers"
 	"github.com/quorumsco/contacts/models"
 	"github.com/quorumsco/databases"
-	"github.com/quorumsco/elastic"
-	//elastic "gopkg.in/olivere/elastic.v2"
 	"github.com/quorumsco/logs"
 	"github.com/quorumsco/settings"
+	elastic "gopkg.in/olivere/elastic.v2"
 )
 
 var (
