@@ -4,7 +4,12 @@
 
 package elastic
 
-import "net/url"
+import (
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
+)
 
 // canonicalize takes a list of URLs and returns its canonicalized form, i.e.
 // remove anything but scheme, userinfo, host, path, and port.
