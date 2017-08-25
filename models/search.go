@@ -15,7 +15,7 @@ type SearchArgs struct {
 }
 
 type KpiReply struct {
-	Key string
+	Key       string
 	Doc_count int64
 }
 
@@ -23,17 +23,16 @@ type KpiAggs struct {
 	KpiReplies []KpiReply
 }
 
-
 // SearchReply is used in the RPC communications between the gateway and Contacts
 type SearchReply struct {
-	Contacts    []Contact
-	Facts       []Fact
-	IDs         []uint
-	AddressAggs []AddressAggReply
+	Contacts          []Contact
+	Facts             []Fact
+	IDs               []uint
+	AddressAggs       []AddressAggReply
 	AddressStreetAggs []AddressStreetAggReply
-	Kpi 	    []KpiAggs
-	Aggregation [][]string
-	Data        []GenericMap
+	Kpi               []KpiAggs
+	Aggregation       [][]string
+	Data              []GenericMap
 }
 
 type AddressAggReply struct {
@@ -45,6 +44,7 @@ type AddressStreetAggReply struct {
 }
 
 type GenericMap struct {
-	Key string
+	Key   string
 	Value string
+	Map   [][]interface{}
 }
