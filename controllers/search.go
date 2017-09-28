@@ -1154,6 +1154,9 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 		aggreg_kpi_birthdate[index_agecat] = elastic.NewDateRangeAggregation().Field("birthdate").Between(refInterval[index_agecat], refInterval[index_agecat-1])
 	}
 
+	aggreg_kpi_without_email := elastic.NewMissingAggregation().Field("mail")
+	aggreg_kpi_without_tel := elastic.NewMissingAggregation().Field("phone")
+
 	//--------------------------------------------------------------------------------------------------------------------
 
 	searchService := s.Client.Search().
@@ -1172,7 +1175,10 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 		Aggregation("3_aggreg", aggreg_kpi_birthdate[3].(elastic.DateRangeAggregation)).
 		Aggregation("4_aggreg", aggreg_kpi_birthdate[4].(elastic.DateRangeAggregation)).
 		Aggregation("5_aggreg", aggreg_kpi_birthdate[5].(elastic.DateRangeAggregation)).
-		Aggregation("6_aggreg", aggreg_kpi_birthdate[6].(elastic.DateRangeAggregation))
+		Aggregation("6_aggreg", aggreg_kpi_birthdate[6].(elastic.DateRangeAggregation)).
+		// aggregation email par
+		Aggregation("contacts_sans_email_aggreg", aggreg_kpi_without_email).
+		Aggregation("contacts_sans_tel_aggreg", aggreg_kpi_without_tel)
 
 	Filter := elastic.NewGeoPolygonFilter("location")
 	if len(args.Search.Polygon) > 0 {
@@ -1234,6 +1240,9 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	a5_agg, found11 := searchResult.Aggregations.DateRange("5_aggreg")
 	a6_agg, found12 := searchResult.Aggregations.DateRange("6_aggreg")
 
+	contacts_sans_email_agg, found13 := searchResult.Aggregations.Missing("contacts_sans_email_aggreg")
+	contacts_sans_tel_agg, found14 := searchResult.Aggregations.Missing("contacts_sans_tel_aggreg")
+
 	if !found {
 		logs.Error("we sould have a terms aggregation called %q", "gender_aggreg")
 	}
@@ -1275,6 +1284,12 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 	}
 	if !found12 {
 		logs.Error("we sould have a terms aggregation called %q", "6_aggreg")
+	}
+	if !found13 {
+		logs.Error("we sould have a terms aggregation called %q", "contacts_sans_email_aggreg")
+	}
+	if !found14 {
+		logs.Error("we sould have a terms aggregation called %q", "contacts_sans_tel_aggreg")
 	}
 
 	if searchResult.Aggregations != nil {
@@ -1433,6 +1448,28 @@ func (s *Search) KpiContacts(args models.SearchArgs, reply *models.SearchReply) 
 			kpiAtom.Doc_count = bucket.DocCount
 			tab_kpiAtom.KpiReplies = append(tab_kpiAtom.KpiReplies, kpiAtom)
 		}
+		reply.Kpi = append(reply.Kpi, tab_kpiAtom)
+		tab_kpiAtom = models.KpiAggs{}
+
+		// ---- nombre de contacts sans email renseigné -----------------------
+		kpiAtom = models.KpiReply{}
+		kpiAtom.Key = "missing"
+		kpiAtom.Doc_count = contacts_sans_email_agg.DocCount
+		if contacts_sans_email_agg.DocCount > 0 {
+			tab_kpiAtom.KpiReplies = append(tab_kpiAtom.KpiReplies, kpiAtom)
+		}
+		// ---------------------------------------
+		reply.Kpi = append(reply.Kpi, tab_kpiAtom)
+		tab_kpiAtom = models.KpiAggs{}
+
+		// ---- nombre de contacts sans email renseigné -----------------------
+		kpiAtom = models.KpiReply{}
+		kpiAtom.Key = "missing"
+		kpiAtom.Doc_count = contacts_sans_tel_agg.DocCount
+		if contacts_sans_tel_agg.DocCount > 0 {
+			tab_kpiAtom.KpiReplies = append(tab_kpiAtom.KpiReplies, kpiAtom)
+		}
+		// ---------------------------------------
 		reply.Kpi = append(reply.Kpi, tab_kpiAtom)
 		tab_kpiAtom = models.KpiAggs{}
 
