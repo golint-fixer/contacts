@@ -1550,7 +1550,10 @@ func (s *Search) AggregationContacts(args models.SearchArgs, reply *models.Searc
 					logs.Error(err)
 					return err
 				}
-				maxDate = *c.LastChange //.Format(timeFormat)
+				if c.LastChange != nil {
+					maxDate = *c.LastChange //.Format(timeFormat)
+				}
+
 			}
 		} else {
 			message := "Should have gotten one hit when sorting by newest contacts"
