@@ -65,6 +65,20 @@ func (s *Search) IndexFact(args models.FactArgs, reply *models.FactReply) error 
 
 	return nil
 }
+func (s *Search) IndexAction(args models.ActionArgs, reply *models.ActionReply) error {
+	//args.Fact.Contact.Address.Location = fmt.Sprintf("%s,%s", args.Fact.Contact.Address.Latitude, args.Fact.Contact.Address.Longitude)
+	_, err := s.Client.Index().
+		Index("action").
+		Type("action").
+		BodyJson(args.Action).
+		Do()
+	if err != nil {
+		logs.Critical(err)
+		return err
+	}
+
+	return nil
+}
 
 // UnIndex unindexes a contact from elasticsearch
 func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) error {
@@ -683,6 +697,11 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	logs.Debug("SearchContacts - search.go")
+	logs.Debug(args.Search == nil)
+	if args.Search == nil {
+		err := errors.New("no args in searchContacts")
+		return err
+	}
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	logs.Debug("args.Search.Polygon:%s", args.Search.Polygon)

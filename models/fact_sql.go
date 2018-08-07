@@ -47,12 +47,12 @@ func (s *FactSQL) First(args FactArgs) (*Fact, error) {
 		}
 		return nil, err
 	}
-	if err := s.DB.Where(f.ActionID).First(&f.Action).Error; err != nil {
-		if s.DB.Where(f.ActionID).First(&f.Action).RecordNotFound() {
-			return nil, err
-		}
-		return nil, err
-	}
+	// if err := s.DB.Where(f.ID).First(&f.Contact).Error; err != nil {
+	// 	if s.DB.Where(f.ID).First(&f.Contact).RecordNotFound() {
+	// 		return nil, err
+	// 	}
+	// 	return nil, err
+	// }
 	err := s.DB.Where(f.ContactID).First(&f.Contact).Error
 	if err != nil && !s.DB.Where(f.ContactID).First(&f.Contact).RecordNotFound() {
 		return nil, err
@@ -71,7 +71,7 @@ func (s *FactSQL) First(args FactArgs) (*Fact, error) {
 func (s *FactSQL) Find(args FactArgs) ([]Fact, error) {
 	var facts []Fact
 
-	err := s.DB.Where("group_id = ?", args.Fact.GroupID).Find(&facts).Error
+	err := s.DB.Where("group_id = ?", args.Fact.GroupID).Preload("Contacts").Find(&facts).Error
 	if err != nil {
 		return nil, err
 	}

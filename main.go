@@ -104,6 +104,7 @@ func serve(ctx *cli.Context) error {
 
 	checkIndex("contacts", client)
 	checkIndex("facts", client)
+	checkIndex("actions", client)
 
 	rpc.Register(&controllers.Search{Client: client})
 	rpc.Register(&controllers.Contact{DB: db})
@@ -112,6 +113,7 @@ func serve(ctx *cli.Context) error {
 	rpc.Register(&controllers.Tag{DB: db})
 	rpc.Register(&controllers.Mission{DB: db})
 	rpc.Register(&controllers.Fact{DB: db})
+	rpc.Register(&controllers.Action{DB: db})
 	rpc.HandleHTTP()
 
 	l, e := net.Listen("tcp", server.String())

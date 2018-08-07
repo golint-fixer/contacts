@@ -48,7 +48,7 @@ func (t *Fact) Create(args models.FactArgs, reply *models.FactReply) error {
 		factStore = models.FactStore(t.DB)
 		err       error
 	)
-
+	logs.Debug(*args.Fact)
 	args.Fact.Contact = models.Contact{}
 
 	if err = factStore.Save(args.Fact, args); err != nil {
