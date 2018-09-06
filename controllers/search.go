@@ -702,6 +702,14 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		err := errors.New("no args in searchContacts")
 		return err
 	}
+	// utiliser pour savoir si la requête provient d'une adresse vide (street)
+	temp_query := args.Search.Query
+
+	//supprimer "undefined" de la requête si ça provient d'une adresse vide (street)
+	args.Search.Query = strings.Replace(args.Search.Query, "undefined", "", 1)
+
+	logs.Debug("temp_query:%s", temp_query)
+
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 	logs.Debug("args.Search.Polygon:%s", args.Search.Polygon)
@@ -837,19 +845,34 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 		fmt.Println("sourceAgg", string(data))
 
 	} else if args.Search.Fields[1] == "address_tophits" || args.Search.Fields[1] == "address" {
-		//aggreg_housenumber := elastic.NewTermsAggregation().Field("address.housenumber").Size(size_requete)
+
 		aggreg_housenumber := elastic.NewTermsAggregation().Size(size_requete).Script("try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }")
-		//"script": "try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }"
-		//aggreg_lattitude := elastic.NewTermsAggregation().Field("address.location.strictdata").Size(size_requete)
 		subaggreg_unique := elastic.NewTopHitsAggregation().Size(500).FetchSourceContext(aggregSource).Sort("address.location.strictdata", true)
-		//aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
+
+		//TEST JBDA BUG FIX-------------
+		aggreg_housenumber_missing := elastic.NewMissingAggregation().Field("address.housenumber")
+		subaggreg_unique2 := elastic.NewTopHitsAggregation().Size(500).FetchSourceContext(aggregSource).Sort("address.location.strictdata", true)
+		aggreg_housenumber_missing = aggreg_housenumber_missing.SubAggregation("result_sub_aggreg_housenumber_missing", subaggreg_unique2)
+		//FIN TEST JBDA BUG FIX-------------
 
 		aggreg_housenumber = aggreg_housenumber.SubAggregation("result_sub_aggreg_housenumber", subaggreg_unique)
-		searchService.Size(0).Aggregation("result_aggreg", aggreg_housenumber).Sort("surname", true)
 
-		sourceAgg := aggreg_housenumber.Source()
-		data, _ := json.Marshal(sourceAgg)
-		fmt.Println("sourceAgg", string(data))
+		//si jamais ça provient d'une adresse vide, il faut d'abord ne prendre que les adresses vides ...
+		if strings.Contains(temp_query, "undefined") {
+			logs.Debug("--&&  BUILD AGGREG FOR SECOND PART WITH UNDEFINED  &&--")
+			aggreg_street_missing := elastic.NewMissingAggregation().Field("address.street")
+			aggreg_street_missing = aggreg_street_missing.SubAggregation("result_aggreg_housenumber_missing", aggreg_housenumber_missing)
+			aggreg_street_missing = aggreg_street_missing.SubAggregation("result_aggreg_housenumber", aggreg_housenumber)
+			searchService.Size(0).Aggregation("result_aggreg_missing", aggreg_street_missing).Sort("surname", true)
+
+		} else {
+			searchService.Size(0).Aggregation("result_aggreg_missing", aggreg_housenumber_missing).Aggregation("result_aggreg", aggreg_housenumber).Sort("surname", true)
+		}
+		//searchService.Size(0).Aggregation("result_aggreg_missing", aggreg_housenumber_missing).Aggregation("result_aggreg", aggreg_housenumber).Sort("surname", true)
+
+		// sourceAgg := aggreg_housenumber.Source()
+		// data, _ := json.Marshal(sourceAgg)
+		// fmt.Println("sourceAgg", string(data))
 
 	} else if args.Search.Fields[1] == "address_aggreg_first_part" {
 		//elasticsearch request:
@@ -924,22 +947,38 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 			  ]
 			}
 		*/
-		aggreg_street := elastic.NewTermsAggregation().Field("address.street.strictdata").Size(size_requete)
+
+		aggreg_street := elastic.NewTermsAggregation().Field("address.street.strictdata").Size(size_requete - 1) //-1 pour prendre en compte une adresse vide si jamais
+		aggreg_street_missing := elastic.NewMissingAggregation().Field("address.street")
+
 		aggreg_housenumber := elastic.NewTermsAggregation().Size(400).Script("try { return Integer.parseInt(_source.address.housenumber); } catch (NumberFormatException e) { return _source.address.housenumber; }")
 		subaggreg_unique := elastic.NewTopHitsAggregation().Size(1).FetchSourceContext(aggregSource_sub).Sort("address.location.strictdata", true)
-
 		aggreg_housenumber = aggreg_housenumber.SubAggregation("result_sub_aggreg_housenumber", subaggreg_unique)
+
+		//TEST JBDA BUG FIX-------------
+		aggreg_housenumber_missing := elastic.NewMissingAggregation().Field("address.housenumber")
+		subaggreg_unique2 := elastic.NewTopHitsAggregation().Size(1).FetchSourceContext(aggregSource_sub).Sort("address.location.strictdata", true)
+		aggreg_housenumber_missing = aggreg_housenumber_missing.SubAggregation("result_sub_aggreg_housenumber_missing", subaggreg_unique2)
+
+		aggreg_street = aggreg_street.SubAggregation("result_sub_aggreg_street_missing", aggreg_housenumber_missing)
+
+		//FIN TEST JBDA BUG FIX-------------
 		aggreg_street = aggreg_street.SubAggregation("result_sub_aggreg_street", aggreg_housenumber)
-		searchService.Size(0).Aggregation("result_aggreg", aggreg_street).Sort("surname", true)
+
+		aggreg_street_missing = aggreg_street_missing.SubAggregation("result_sub_aggreg_street_missing", aggreg_housenumber_missing)
+		aggreg_street_missing = aggreg_street_missing.SubAggregation("result_sub_aggreg_street", aggreg_housenumber)
+
+		searchService.Size(0).Aggregation("result_aggreg", aggreg_street).Aggregation("result_aggreg_missing", aggreg_street_missing).Sort("surname", true)
+
 		/*
 			aggreg_street := elastic.NewTermsAggregation().Field("address.street.strictdata").Size(size_requete)
 			aggreg_lattitude := elastic.NewTermsAggregation().Field("address.location.strictdata").Size(1000)
 			subaggreg_unique := elastic.NewTopHitsAggregation().Size(1).FetchSourceContext(aggregSource_sub)
 			aggreg_lattitude = aggreg_lattitude.SubAggregation("result_subaggreg", subaggreg_unique)
 		*/
-		sourceAgg := aggreg_street.Source()
-		data, _ := json.Marshal(sourceAgg)
-		fmt.Println("sourceAgg", string(data))
+		//sourceAgg := aggreg_street.Source()
+		//data, _ := json.Marshal(sourceAgg)
+		//fmt.Println("sourceAgg", string(data))
 
 	} else {
 		searchService.Size(size_requete).
@@ -1017,20 +1056,161 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	}
 
 	// traitement aggrégations -> address aggs -----------------
-	agg, found := searchResult.Aggregations.Terms("result_aggreg")
-	if !found {
-		logs.Debug("we sould have a terms aggregation called %q", "aggreg_street")
-	} else {
-		if searchResult.Aggregations != nil {
-			for _, bucket := range agg.Buckets {
-				if args.Search.Fields[1] == "address_aggreg" || args.Search.Fields[1] == "address_aggreg_first_part" {
+	if args.Search.Fields[1] == "address_aggreg" || args.Search.Fields[1] == "address_aggreg_first_part" {
+		logs.Debug("----------------------ENTER FIRST PART----------------------------")
+
+		//------------------------------------result_aggreg_missing-------------------------------------
+		agg_missing, found := searchResult.Aggregations.Terms("result_aggreg_missing")
+		if !found {
+			logs.Debug("we sould have a terms aggregation called %q", "result_aggreg_missing")
+		} else {
+			//data, _ := json.Marshal(agg_missing)
+			//fmt.Println("FIRST PART :  result_aggreg_missing : ", string(data))
+			var ff models.AddressStreetAggReply
+
+			logs.Debug("Enter : street_notmissing")
+			street_notmissing, found := agg_missing.Terms("result_sub_aggreg_street")
+			if found {
+				//data, _ := json.Marshal(street_notmissing)
+				//fmt.Println("result_sub_aggreg_street : ", string(data))
+
+				for _, subbucket := range street_notmissing.Buckets {
+					subaggreg_unique, found := subbucket.TopHits("result_sub_aggreg_housenumber")
+					if found {
+						//data, _ := json.Marshal(subaggreg_unique)
+						//fmt.Println("result_sub_aggreg_housenumber : ", string(data))
+						// pour chaque addresse aggrégée
+						var cs models.AddressAggReply
+						for _, addresse := range subaggreg_unique.Hits.Hits {
+							//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+							var c models.Contact
+							err := json.Unmarshal(*addresse.Source, &c)
+							if err != nil {
+								logs.Error(err)
+								return err
+							}
+							cs.Contacts = append(cs.Contacts, c)
+						}
+						if len(cs.Contacts) > 0 {
+							ff.Addresses = append(ff.Addresses, cs)
+						}
+					} else {
+						logs.Error("result_sub_aggreg_housenumber NOT FOUND in address_aggreg or address_aggreg_first_part")
+					}
+					subaggreg_unique2, found := subbucket.TopHits("result_sub_aggreg_housenumber_missing")
+					if found {
+						//data, _ := json.Marshal(subaggreg_unique2)
+						//fmt.Println("result_sub_aggreg_housenumber_missing : ", string(data))
+						// pour chaque addresse aggrégée
+						var cs models.AddressAggReply
+						for _, addresse := range subaggreg_unique2.Hits.Hits {
+							//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+							var c models.Contact
+							err := json.Unmarshal(*addresse.Source, &c)
+							if err != nil {
+								logs.Error(err)
+								return err
+							}
+							cs.Contacts = append(cs.Contacts, c)
+						}
+						if len(cs.Contacts) > 0 {
+							ff.Addresses = append(ff.Addresses, cs)
+						}
+					} else {
+						logs.Error("result_sub_aggreg_housenumber NOT FOUND in address_aggreg or address_aggreg_first_part")
+					}
+				}
+			}
+
+			logs.Debug("Enter : street_missing")
+			street_missing, found := agg_missing.Aggregations.Terms("result_sub_aggreg_street_missing")
+			if found {
+				//data, _ := json.Marshal(street_missing)
+				//fmt.Println("street_missing: ", string(data))
+
+				street_missing_number, found := street_missing.TopHits("result_sub_aggreg_housenumber")
+				if found {
+					logs.Debug("Enter : street_missing_number")
+					var cs models.AddressAggReply
+					for _, addresse := range street_missing_number.Hits.Hits {
+						//logs.Debug("#########################################AA1")
+						//data, _ := json.Marshal(addresse)
+						//fmt.Println("adresse missing : ", string(data))
+						//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+						var c models.Contact
+						err := json.Unmarshal(*addresse.Source, &c)
+						if err != nil {
+							logs.Error(err)
+							return err
+						}
+						cs.Contacts = append(cs.Contacts, c)
+					}
+					if len(cs.Contacts) > 0 {
+						ff.Addresses = append(ff.Addresses, cs)
+					}
+					//fin de boucle, je rajoute les "contacts" à l'adresse :
+
+				}
+				street_number_missing, found2 := street_missing.TopHits("result_sub_aggreg_housenumber_missing")
+				if found2 {
+					//logs.Debug("#########################################BB")
+					var cs models.AddressAggReply
+					for _, addresse := range street_number_missing.Hits.Hits {
+						//logs.Debug("#########################################BB1")
+						//data, _ := json.Marshal(addresse)
+						//fmt.Println("adresse missing : ", string(data))
+						//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+						var c models.Contact
+						err := json.Unmarshal(*addresse.Source, &c)
+						if err != nil {
+							logs.Error(err)
+							return err
+						}
+						cs.Contacts = append(cs.Contacts, c)
+					}
+					//fin de boucle, je rajoute les "contacts" à l'adresse :
+					if len(cs.Contacts) > 0 {
+						ff.Addresses = append(ff.Addresses, cs)
+					}
+
+				}
+
+				//}
+			}
+			if len(ff.Addresses) > 0 {
+				reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+				//logs.Debug(reply.AddressStreetAggs)
+			}
+		}
+		//---------------------------------------------result_aggreg------------------------------------------
+		agg, found := searchResult.Aggregations.Terms("result_aggreg")
+		if !found {
+			logs.Debug("we sould have a terms aggregation called %q", "result_aggreg")
+		} else {
+			if searchResult.Aggregations != nil {
+				for _, bucket := range agg.Buckets {
+					//data, _ := json.Marshal(bucket)
+					//fmt.Println("bucket: ", string(data))
+					//fmt.Println("args.Search.Fields[1]: ", args.Search.Fields[1])
+					//logs.Debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+
+					//logs.Debug("ENTER")
+					var ff models.AddressStreetAggReply
+
 					toto, found := bucket.Terms("result_sub_aggreg_street")
 					if found {
-						var ff models.AddressStreetAggReply
+						//data, _ := json.Marshal(toto)
+						//fmt.Println("PRESENT!!!!!!!! 1 : ", string(data))
+
+						//var ff models.AddressStreetAggReply
 						for _, subbucket := range toto.Buckets {
+							//data, _ := json.Marshal(subbucket)
+							//fmt.Println("PRESENT!!!!!!!! 2 : ", string(data))
 							//subaggreg_unique, found := bucket.TopHits("result_subaggreg")
 							subaggreg_unique, found := subbucket.TopHits("result_sub_aggreg_housenumber")
 							if found {
+								//data, _ := json.Marshal(subaggreg_unique)
+								//fmt.Println("PRESENT!!!!!!!! 3 : ", string(data))
 								// pour chaque addresse aggrégée
 								var cs models.AddressAggReply
 								for _, addresse := range subaggreg_unique.Hits.Hits {
@@ -1043,51 +1223,36 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 									}
 									cs.Contacts = append(cs.Contacts, c)
 								}
-								ff.Addresses = append(ff.Addresses, cs)
+								if len(cs.Contacts) > 0 {
+									ff.Addresses = append(ff.Addresses, cs)
+								}
 							} else {
-								logs.Error("result_subaggreg NOT FOUND in address_aggreg or address_aggreg_first_part")
+								logs.Error("result_sub_aggreg_housenumber NOT FOUND in address_aggreg or address_aggreg_first_part")
 							}
+
 						}
-						reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+						//reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
 					} else {
-						logs.Error("result_sub_aggreg_latitude NOT FOUND in address_aggreg or address_aggreg_first_part")
+						logs.Error("result_sub_aggreg_street NOT FOUND in address_aggreg or address_aggreg_first_part")
 					}
 
-				} else {
-					/*
-						toto, found := bucket.Terms("result_sub_aggreg_housenumber")
-						if found {
-							//var ff models.AddressStreetAggReply
-							for _, subbucket := range toto.Buckets {
-								//subaggreg_unique, found := bucket.TopHits("result_subaggreg")
-								subaggreg_unique, found := subbucket.TopHits("result_subaggreg")
-								if found {
-									// pour chaque addresse aggrégée
-									var cs models.AddressAggReply
-									for _, addresse := range subaggreg_unique.Hits.Hits {
-										//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
-										var c models.Contact
-										err := json.Unmarshal(*addresse.Source, &c)
-										if err != nil {
-											logs.Error(err)
-											return err
-										}
-										cs.Contacts = append(cs.Contacts, c)
-									}
-									reply.AddressAggs = append(reply.AddressAggs,cs)
-									//ff.Addresses = append(ff.Addresses, cs)
-								}
-							}
-							//reply.AddressAggs = ff.Addresses
-							//reply.AddressAggs = append(reply.AddressAggs, ff.Addresses)
-							//reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
-						}*/
-					/*
-						subaggreg_unique, found := bucket.TopHits("result_subaggreg")
+					titi, found := bucket.Terms("result_sub_aggreg_street_missing")
+					if found {
+						//data, _ := json.Marshal(titi)
+						//fmt.Println("MISSSSSSIIIINNNNGGGG!!!!!!!! 1: ", string(data))
+						//var ff models.AddressStreetAggReply
+
+						//for _, subbucket := range titi.Buckets {
+						//manage aggreg for addresses with no house number :
+						subaggreg_unique2, found := titi.TopHits("result_sub_aggreg_housenumber_missing")
 						if found {
 							// pour chaque addresse aggrégée
+							//data, _ := json.Marshal(subaggreg_unique2)
+							//fmt.Println("MISSSSSSIIIINNNNGGGG!!!!!!!! 2: ", string(data))
 							var cs models.AddressAggReply
-							for _, addresse := range subaggreg_unique.Hits.Hits {
+							for _, addresse := range subaggreg_unique2.Hits.Hits {
+								//data, _ := json.Marshal(addresse)
+								//fmt.Println("adresse missing : ", string(data))
 								//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
 								var c models.Contact
 								err := json.Unmarshal(*addresse.Source, &c)
@@ -1097,9 +1262,48 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 								}
 								cs.Contacts = append(cs.Contacts, c)
 							}
-							reply.AddressAggs = append(reply.AddressAggs, cs)
-						}*/
+							//fin de boucle, je rajoute les "contacts" à l'adresse :
+							if len(cs.Contacts) > 0 {
+								ff.Addresses = append(ff.Addresses, cs)
+							}
+						} else {
+							logs.Error("result_sub_aggreg_housenumber_missing NOT FOUND in address_aggreg or address_aggreg_first_part")
+						}
+						//}
+						//reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+					} else {
+						logs.Error("result_sub_aggreg_street_missing NOT FOUND in address_aggreg or address_aggreg_first_part")
+					}
+					if len(ff.Addresses) > 0 {
+						reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+					}
+					//logs.Debug(reply.AddressStreetAggs)
 
+				} //fin for buckets
+			} else {
+				reply.Contacts = nil
+			}
+		} //fin else !found
+		logs.Debug("----------------------END FIRST PART--------------------------")
+		//---------------------------------------------SECOND PART-----------------------
+	} else {
+		logs.Debug("----------------------ENTER SECOND PART---------------------------")
+		//logs.Debug(args.Search.Fields[1])
+		agg, found := searchResult.Aggregations.Terms("result_aggreg")
+
+		if !found {
+			logs.Debug("we sould have a terms aggregation called %q", "result_aggreg")
+		} else {
+			logs.Debug("//////// ENTER result_aggreg ////////")
+			//data, _ := json.Marshal(agg)
+			//fmt.Println("result_aggreg: ", string(data))
+			if searchResult.Aggregations != nil {
+				for _, bucket := range agg.Buckets {
+					//data, _ := json.Marshal(bucket)
+					//fmt.Println("bucket: ", string(data))
+					//fmt.Println("args.Search.Fields[1]: ", args.Search.Fields[1])
+					//logs.Debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+					//logs.Debug("ACHTUNGGGGGGG8!!!!!!!!!!!")
 					subaggreg_unique, found := bucket.TopHits("result_sub_aggreg_housenumber")
 					if found {
 						// pour chaque addresse aggrégée
@@ -1118,13 +1322,172 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 					} else {
 						logs.Error("result_sub_aggreg_housenumber NOT FOUND")
 					}
+
 				}
 			}
+		}
+		agg_missing, found := searchResult.Aggregations.Terms("result_aggreg_missing")
+		//agg, found := searchResult.Aggregations.Terms("result_aggreg")
+		if !found {
+			logs.Debug("we sould have a terms aggregation called %q", "result_aggreg_missing")
 		} else {
-			reply.Contacts = nil
+			logs.Debug("//////// ENTER result_aggreg_missing ////////")
+
+			if strings.Contains(temp_query, "undefined") {
+				logs.Debug("################## undefined #######################")
+				//data, _ := json.Marshal(agg_missing)
+				//fmt.Println("agg_missing: ", string(data))
+				//aggreg_street_missing = aggreg_housenumber_missing.SubAggregation("result_aggreg_housenumber_missing", aggreg_housenumber_missing)
+				//aggreg_street_missing = aggreg_housenumber_missing.SubAggregation("result_aggreg_housenumber", aggreg_housenumber)
+				//searchService.Size(0).Aggregation("result_aggreg_street_missing", aggreg_street_missing).Sort("surname", true)
+				titi, found := agg_missing.Aggregations.Terms("result_aggreg_housenumber")
+				toto, found2 := agg_missing.Aggregations.Terms("result_aggreg_housenumber_missing")
+
+				if found {
+					//logs.Debug("#########################################3")
+					//logs.Debug(titi)
+					//var ff models.AddressStreetAggReply
+					for _, bucket := range titi.Buckets {
+						//logs.Debug("#########################################4")
+						//logs.Debug(bucket)
+						subaggreg_unique, found := bucket.TopHits("result_sub_aggreg_housenumber")
+						if found {
+							//logs.Debug("#########################################5")
+							var cs models.AddressAggReply
+							for _, addresse := range subaggreg_unique.Hits.Hits {
+								//logs.Debug("#########################################6")
+								//data, _ := json.Marshal(addresse)
+								//fmt.Println("adresse missing : ", string(data))
+								//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+								var c models.Contact
+								err := json.Unmarshal(*addresse.Source, &c)
+								if err != nil {
+									logs.Error(err)
+									return err
+								}
+								cs.Contacts = append(cs.Contacts, c)
+							}
+							//fin de boucle, je rajoute les "contacts" à l'adresse :
+							if len(cs.Contacts) > 0 {
+								//ff.Addresses = append(ff.Addresses, cs)
+								reply.AddressAggs = append(reply.AddressAggs, cs)
+							}
+						}
+						subaggreg_unique2, found2 := bucket.TopHits("result_sub_aggreg_housenumber_missing")
+						if found2 {
+							//logs.Debug("#########################################7")
+							var cs models.AddressAggReply
+							for _, addresse := range subaggreg_unique2.Hits.Hits {
+								//logs.Debug("#########################################8")
+								//data, _ := json.Marshal(addresse)
+								//fmt.Println("adresse missing : ", string(data))
+								//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+								var c models.Contact
+								err := json.Unmarshal(*addresse.Source, &c)
+								if err != nil {
+									logs.Error(err)
+									return err
+								}
+								cs.Contacts = append(cs.Contacts, c)
+							}
+							//fin de boucle, je rajoute les "contacts" à l'adresse :
+							if len(cs.Contacts) > 0 {
+								//ff.Addresses = append(ff.Addresses, cs)
+								reply.AddressAggs = append(reply.AddressAggs, cs)
+							}
+
+						}
+					}
+					//reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+				}
+
+				if found2 {
+					//logs.Debug("#########################################10")
+					//logs.Debug(toto)
+					//data, _ := json.Marshal(toto)
+					//fmt.Println("toto : ", string(data))
+					//var ff models.AddressStreetAggReply
+
+					//logs.Debug("#########################################11")
+					subaggreg_unique, found := toto.TopHits("result_sub_aggreg_housenumber")
+					if found {
+						//logs.Debug("#########################################12")
+						var cs models.AddressAggReply
+						for _, addresse := range subaggreg_unique.Hits.Hits {
+							//logs.Debug("#########################################13")
+							//data, _ := json.Marshal(addresse)
+							//fmt.Println("adresse missing : ", string(data))
+							//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+							var c models.Contact
+							err := json.Unmarshal(*addresse.Source, &c)
+							if err != nil {
+								logs.Error(err)
+								return err
+							}
+							cs.Contacts = append(cs.Contacts, c)
+						}
+						//fin de boucle, je rajoute les "contacts" à l'adresse :
+						if len(cs.Contacts) > 0 {
+							reply.AddressAggs = append(reply.AddressAggs, cs)
+							//ff.Addresses = append(ff.Addresses, cs)
+						}
+					}
+					subaggreg_unique2, found2 := toto.TopHits("result_sub_aggreg_housenumber_missing")
+					if found2 {
+						//logs.Debug("#########################################14")
+						var cs models.AddressAggReply
+						for _, addresse := range subaggreg_unique2.Hits.Hits {
+							//logs.Debug("#########################################15")
+							//data, _ := json.Marshal(addresse)
+							//fmt.Println("adresse missing : ", string(data))
+							//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+							var c models.Contact
+							err := json.Unmarshal(*addresse.Source, &c)
+							if err != nil {
+								logs.Error(err)
+								return err
+							}
+							cs.Contacts = append(cs.Contacts, c)
+						}
+						//fin de boucle, je rajoute les "contacts" à l'adresse :
+						if len(cs.Contacts) > 0 {
+							reply.AddressAggs = append(reply.AddressAggs, cs)
+							//ff.Addresses = append(ff.Addresses, cs)
+						}
+
+					}
+
+					//reply.AddressStreetAggs = append(reply.AddressStreetAggs, ff)
+				}
+				// FIN : --- if strings.Contains(temp_query, "undefined") ----
+			} else {
+				subaggreg_unique_missing, found := agg_missing.TopHits("result_sub_aggreg_housenumber_missing")
+				if found {
+					// pour chaque addresse aggrégée
+					var cs models.AddressAggReply
+					for _, addresse := range subaggreg_unique_missing.Hits.Hits {
+						//on utilise le modèle Contact uniquement pour stocker l'adresse aggrégée
+						var c models.Contact
+						err := json.Unmarshal(*addresse.Source, &c)
+						if err != nil {
+							logs.Error(err)
+							return err
+						}
+
+						cs.Contacts = append(cs.Contacts, c)
+					}
+					//fin de boucle, je rajoute les "contacts" à l'adresse :
+					if len(cs.Contacts) > 0 {
+						reply.AddressAggs = append(reply.AddressAggs, cs)
+					}
+
+				} else {
+					logs.Error("result_sub_aggreg_housenumber_missing NOT FOUND")
+				}
+			}
 		}
 	}
-	//----------------------------------------------------
+
 	return nil
 }
 
