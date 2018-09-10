@@ -27,23 +27,6 @@ func (t *Contact) RetrieveCollection(args models.ContactArgs, reply *models.Cont
 	return nil
 }
 
-// RetrieveCollectionByMission calls the ContactSQL FindByMission method and returns the results via RPC
-func (t *Contact) RetrieveCollectionByMission(args models.ContactArgs, reply *models.ContactReply) error {
-	var (
-		err error
-
-		contactStore = models.ContactStore(t.DB)
-		m            = models.Mission{ID: args.MissionID, GroupID: args.Contact.GroupID}
-	)
-
-	if reply.Contacts, err = contactStore.FindByMission(&m, args); err != nil {
-		logs.Error(err)
-		return err
-	}
-
-	return nil
-}
-
 // Retrieve calls the ContactSQL First method and returns the results via RPC
 func (t *Contact) Retrieve(args models.ContactArgs, reply *models.ContactReply) error {
 	var (

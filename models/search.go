@@ -1,6 +1,12 @@
 // Definition of the structures and SQL interaction functions
 package models
 
+//To represent a GeoPolygon
+type Point struct {
+	Lat float64 `json:"lat"`
+	Lng float64 `json:"lng"`
+}
+
 // Search represents the search arguments
 type Search struct {
 	Query   string   `json:"query,omitempty"`
@@ -26,7 +32,6 @@ type KpiAggs struct {
 // SearchReply is used in the RPC communications between the gateway and Contacts
 type SearchReply struct {
 	Contacts          []Contact
-	Facts             []Fact
 	IDs               []uint
 	AddressAggs       []AddressAggReply
 	AddressStreetAggs []AddressStreetAggReply

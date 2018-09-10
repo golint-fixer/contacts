@@ -50,36 +50,6 @@ func (s *Search) Index(args models.ContactArgs, reply *models.ContactReply) erro
 	return nil
 }
 
-// Index indexes a contact into elasticsearch
-func (s *Search) IndexFact(args models.FactArgs, reply *models.FactReply) error {
-	args.Fact.Contact.Address.Location = fmt.Sprintf("%s,%s", args.Fact.Contact.Address.Latitude, args.Fact.Contact.Address.Longitude)
-	_, err := s.Client.Index().
-		Index("facts").
-		Type("fact").
-		BodyJson(args.Fact).
-		Do()
-	if err != nil {
-		logs.Critical(err)
-		return err
-	}
-
-	return nil
-}
-func (s *Search) IndexAction(args models.ActionArgs, reply *models.ActionReply) error {
-	//args.Fact.Contact.Address.Location = fmt.Sprintf("%s,%s", args.Fact.Contact.Address.Latitude, args.Fact.Contact.Address.Longitude)
-	_, err := s.Client.Index().
-		Index("action").
-		Type("action").
-		BodyJson(args.Action).
-		Do()
-	if err != nil {
-		logs.Critical(err)
-		return err
-	}
-
-	return nil
-}
-
 // UnIndex unindexes a contact from elasticsearch
 func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) error {
 	id := strconv.Itoa(int(args.Contact.ID))
@@ -1335,11 +1305,6 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 
 			if strings.Contains(temp_query, "undefined") {
 				logs.Debug("################## undefined #######################")
-				//data, _ := json.Marshal(agg_missing)
-				//fmt.Println("agg_missing: ", string(data))
-				//aggreg_street_missing = aggreg_housenumber_missing.SubAggregation("result_aggreg_housenumber_missing", aggreg_housenumber_missing)
-				//aggreg_street_missing = aggreg_housenumber_missing.SubAggregation("result_aggreg_housenumber", aggreg_housenumber)
-				//searchService.Size(0).Aggregation("result_aggreg_street_missing", aggreg_street_missing).Sort("surname", true)
 				titi, found := agg_missing.Aggregations.Terms("result_aggreg_housenumber")
 				toto, found2 := agg_missing.Aggregations.Terms("result_aggreg_housenumber_missing")
 

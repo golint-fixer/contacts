@@ -26,10 +26,10 @@ func (s *ContactSQL) Save(c *Contact, args ContactArgs) error {
 
 	// pour les formulaires à détruire lorsque le champ "Data" est mis à la valeur "ToDelete"
 	for i := len(c.Formdatas) - 1; i >= 0; i-- {
-    formdata := c.Formdatas[i]
+		formdata := c.Formdatas[i]
 
-    // Condition to decide if current element has to be deleted:
-    // if (formdata.Data=="ToDelete"){
+		// Condition to decide if current element has to be deleted:
+		// if (formdata.Data=="ToDelete"){
 		// 	if (formdata.ID>0){
 		// 		if err := s.DB.Delete(c.Formdatas[i]).Error; err != nil {
 		// 			return err
@@ -42,13 +42,13 @@ func (s *ContactSQL) Save(c *Contact, args ContactArgs) error {
 		// 	 logs.Error("ENTER TO DELETE WITHOUT ID- contacter le support")
 		// 	 return errors.New("ENTER TO DELETE - contacter le support")
 		//  }
-    // }
-		c.Formdatas[i].ID=0
-		if (formdata.Data=="ToDelete"){
-					s := c.Formdatas
-			    s = append(s[:i], s[i+1:]...)
-			    c.Formdatas = s
-    }
+		// }
+		c.Formdatas[i].ID = 0
+		if formdata.Data == "ToDelete" {
+			s := c.Formdatas
+			s = append(s[:i], s[i+1:]...)
+			c.Formdatas = s
+		}
 
 	}
 	return s.DB.Where("group_id = ?", args.Contact.GroupID).Save(c).Error
@@ -95,12 +95,4 @@ func (s *ContactSQL) Find(args ContactArgs) ([]Contact, error) {
 	}
 
 	return contacts, nil
-}
-
-// FindByMission returns all the contacts from in a mission from the database
-func (s *ContactSQL) FindByMission(m *Mission, args ContactArgs) ([]Contact, error) {
-	var contacts []Contact
-	err := s.DB.Model(m).Related(&contacts, "Contacts").Error
-
-	return contacts, err
 }
