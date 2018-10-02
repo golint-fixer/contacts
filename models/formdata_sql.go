@@ -63,10 +63,16 @@ func (s *FormdataSQL) First(args FormdataArgs) (*Formdata, error) {
 // Find returns all the formdatas containing a given groupID from the database
 func (s *FormdataSQL) Find(args FormdataArgs) ([]Formdata, error) {
 	var formdatas []Formdata
-
-	err := s.DB.Where("group_id = ?", args.Formdata.GroupID).Where("contact_id = ?", args.ContactID).Find(&formdatas).Error
-	if err != nil {
-		return nil, err
+	if args.FactID > 0 {
+		err := s.DB.Where("group_id = ?", args.Formdata.GroupID).Where("fact_id = ?", args.FactID).Find(&formdatas).Error
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := s.DB.Where("group_id = ?", args.Formdata.GroupID).Where("contact_id = ?", args.ContactID).Find(&formdatas).Error
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return formdatas, nil

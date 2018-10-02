@@ -11,6 +11,7 @@ type Formdata struct {
 
 	GroupID     uint `db:"group_id" json:"group_id"`
 	ContactID   uint `db:"contact_id" json:"contact_id"`
+	FactID      uint `db:"fact_id" json:"fact_id"`
 	FormID      uint `db:"form_id" json:"form_id"`
 	Form_ref_id uint `db:"form_ref_id" json:"form_ref_id"`
 }
@@ -19,6 +20,7 @@ type Formdata struct {
 type FormdataArgs struct {
 	GroupID   uint
 	ContactID uint
+	FactID    uint
 	FormID    uint
 	Formdata  *Formdata
 }
