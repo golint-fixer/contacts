@@ -197,6 +197,10 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		Query = Query.Operator("and")
 		//Query2 := elastic.NewTermQuery("group_id", args.Search.Fields[0])
 
+		if len(args.Search.Fields) <= 2 {
+			return errors.New("No term specified as second field parameter")
+		}
+
 		if args.Search.Fields[1] == "firstname" {
 			//logs.Debug("firstname search")
 			Query = Query.Field("firstname")
@@ -247,6 +251,9 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 	}
 
 	// filtre la recherche sur un groupe en particulier !!!! pas d'authorisation nécessaire !!!!
+	if len(args.Search.Fields) == 0 {
+		return errors.New("No group_id specified as first field parameter")
+	}
 	*bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
 
 	// contrôle si on est en recherche simple (mobile) ou avancée (desktop)
@@ -272,6 +279,9 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 		//--------------------------------pollingstation ------------------------------------------------------------
 
+		if len(args.Search.Fields) < 5 {
+			return errors.New("No polling station filter specified as sixth field parameter")
+		}
 		var pollingstation_filter = args.Search.Fields[5]
 		if pollingstation_filter != "" {
 			//affectation des différentes polling station dans un tableau de string
@@ -315,6 +325,9 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 		//-------------------------age_category & birthdate ----------------------------------------------------
 
+		if len(args.Search.Fields) < 6 {
+			return errors.New("No age category filter specified as seventh field parameter")
+		}
 		var agecategory = args.Search.Fields[6]
 		if agecategory != "" {
 
@@ -574,6 +587,9 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 			var bq_child4 elastic.BoolQuery = elastic.NewBoolQuery()
 			var bq_child_nested elastic.NestedQuery
 
+			if len(dataSlice_form) == 0 {
+				return fmt.Errorf("Slash-separated data misformed; expected at least one value but got %s instead", dataSlice_form)
+			}
 			if dataSlice_form[0] == "DATE" {
 				var interfaceTemp interface{}
 				interfaceTemp = interfaceSlice_form[4].(int) + 86399000
@@ -602,6 +618,9 @@ func BuildQueryForm(args models.SearchArgs, bq *elastic.BoolQuery) error {
 				}
 			} else if dataSlice_form[0] == "TEXT" {
 				//pour découper (espace) le query du text afin de faire plusieurs arguments
+				if len(dataSlice_form) < 5 {
+					return errors.New("Expected text value as slash-separated data but got nothing as fifth parameter")
+				}
 				var texts = strings.Split(dataSlice_form[4], " ")
 				for index, text := range texts {
 					if text == "" {
@@ -709,6 +728,10 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	// TEMPORY PATCH FOR MOBILE COMPATIBILITY 0.1.4 (and inferior) -> delete the 4th parameters of "address" request
 	logs.Debug("len(args.Search.Fields):")
 	logs.Debug(len(args.Search.Fields))
+
+	if len(args.Search.Fields) < 2 {
+		return errors.New("No term specified as second field parameter")
+	}
 
 	if (args.Search.Fields[1] == "address_tophits" || args.Search.Fields[1] == "address_aggreg" || args.Search.Fields[1] == "address_aggreg_first_part" || args.Search.Fields[1] == "address") && len(args.Search.Fields) == 4 {
 		logs.Debug("args.Search.Fields[3]:")
@@ -1506,6 +1529,9 @@ func (s *Search) AggregationContacts(args models.SearchArgs, reply *models.Searc
 	// 2. Date: group by week
 	// 3. name_presence (in form_data)
 
+	if len(args.Search.Fields) == 0 {
+		return errors.New("No group_id specified as first field parameter")
+	}
 	groupIdStr := args.Search.Fields[0]
 
 	presenceFormId := -1
@@ -1726,6 +1752,9 @@ func (s *Search) AggregationContacts(args models.SearchArgs, reply *models.Searc
 }
 
 func (s *Search) DateAggregationContacts(args models.SearchArgs, reply *models.SearchReply) error {
+	if len(args.Search.Fields) == 0 {
+		return errors.New("No group_id specified as first field parameter")
+	}
 	groupIdStr := args.Search.Fields[0]
 
 	bq := elastic.NewBoolQuery()
@@ -1764,6 +1793,9 @@ func (s *Search) DateAggregationContacts(args models.SearchArgs, reply *models.S
 }
 
 func (s *Search) LocationSummaryContacts(args models.SearchArgs, reply *models.SearchReply) error {
+	if len(args.Search.Fields) == 0 {
+		return errors.New("No group_id specified as first field parameter")
+	}
 	groupIdStr := args.Search.Fields[0]
 	maxResults := 500
 
@@ -2114,6 +2146,12 @@ func (s *Search) LocationSummaryContactsGeoHashWithSearchFilter(args models.Sear
 }
 
 func (s *Search) LocationSummaryContactsGeoHash(args models.SearchArgs, reply *models.SearchReply) error {
+	if len(args.Search.Fields) == 0 {
+		return errors.New("No group_id specified as first field parameter")
+	}
+	if len(args.Search.Fields) < 12 {
+		return fmt.Errorf("Misformed fields parameter; expected at least a 12-sized string array, got a %d-sized array instead", len(args.Search.Fields))
+	}
 	groupIdStr := args.Search.Fields[0]
 	maxResults, err := strconv.Atoi(args.Search.Fields[10])
 	if err != nil {
@@ -2450,7 +2488,7 @@ func GetDateFilter(minDateStr string, maxDateStr string) *elastic.RangeQuery {
 // in aggAccumulator, writing the result to reply.Aggregations when the end of order has been reached
 // It uses a switch to choose which helper funciton to run to parse the current level (TODO - could be improved, string switch feels brittle)
 func ParseElasticAggregationLevels(aggs elastic.Aggregations, reply *models.SearchReply, order []string, aggAccumulator []string) error {
-	if len(order) <= 0 {
+	if len(order) == 0 {
 		logs.Error("ParseElasticAggregationLevels was called with no levels!")
 		return nil // TODO - should be an error
 	} else {
@@ -2758,6 +2796,10 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 	logs.Debug("args.Search.Query:%s", args.Search.Query)
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 
+	if len(args.Search.Fields) == 0 {
+		return errors.New("No group_id specified")
+	}
+
 	bq := elastic.NewBoolQuery()
 	bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
 
@@ -2771,6 +2813,10 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 	//Point(-70, 40)
 
 	var geopoint = strings.Split(args.Search.Query, ",")
+	if len(geopoint) != 2 {
+		return errors.New("Misformatted query string; expected geopoint coma-separated")
+	}
+
 	a, err := strconv.ParseFloat(geopoint[0], 64)
 	if err != nil {
 		logs.Critical(err)
