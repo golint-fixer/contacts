@@ -28,8 +28,8 @@ type respID struct {
 func (s *Search) Index(args models.ContactArgs, reply *models.ContactReply) error {
 	id := strconv.Itoa(int(args.Contact.ID))
 	if id == "" {
-		logs.Error("id is nil")
-		return errors.New("id is nil")
+		logs.Error(models.NoContactID)
+		return models.NoContactID
 	}
 
 	if args.Contact.Address.Latitude != "" && args.Contact.Address.Longitude != "" {
@@ -84,8 +84,8 @@ func (s *Search) IndexAction(args models.ActionArgs, reply *models.ActionReply) 
 func (s *Search) UnIndex(args models.ContactArgs, reply *models.ContactReply) error {
 	id := strconv.Itoa(int(args.Contact.ID))
 	if id == "" {
-		logs.Error("id is nil")
-		return errors.New("id is nil")
+		logs.Error(models.NoContactID)
+		return models.NoContactID
 	}
 
 	_, err := s.Client.Delete().
@@ -198,7 +198,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 		//Query2 := elastic.NewTermQuery("group_id", args.Search.Fields[0])
 
 		if len(args.Search.Fields) <= 2 {
-			return errors.New("No term specified as second field parameter")
+			return models.NoGroupID
 		}
 
 		if args.Search.Fields[1] == "firstname" {
@@ -252,7 +252,7 @@ func BuildQuery(args models.SearchArgs, bq *elastic.BoolQuery) error {
 
 	// filtre la recherche sur un groupe en particulier !!!! pas d'authorisation nécessaire !!!!
 	if len(args.Search.Fields) == 0 {
-		return errors.New("No group_id specified as first field parameter")
+		return models.NoGroupID
 	}
 	*bq = bq.Must(elastic.NewTermQuery("group_id", args.Search.Fields[0]))
 
@@ -730,7 +730,7 @@ func (s *Search) SearchContacts(args models.SearchArgs, reply *models.SearchRepl
 	logs.Debug(len(args.Search.Fields))
 
 	if len(args.Search.Fields) < 2 {
-		return errors.New("No term specified as second field parameter")
+		return models.NoTerm
 	}
 
 	if (args.Search.Fields[1] == "address_tophits" || args.Search.Fields[1] == "address_aggreg" || args.Search.Fields[1] == "address_aggreg_first_part" || args.Search.Fields[1] == "address") && len(args.Search.Fields) == 4 {
@@ -1530,7 +1530,7 @@ func (s *Search) AggregationContacts(args models.SearchArgs, reply *models.Searc
 	// 3. name_presence (in form_data)
 
 	if len(args.Search.Fields) == 0 {
-		return errors.New("No group_id specified as first field parameter")
+		return models.NoGroupID
 	}
 	groupIdStr := args.Search.Fields[0]
 
@@ -1753,7 +1753,7 @@ func (s *Search) AggregationContacts(args models.SearchArgs, reply *models.Searc
 
 func (s *Search) DateAggregationContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	if len(args.Search.Fields) == 0 {
-		return errors.New("No group_id specified as first field parameter")
+		return models.NoGroupID
 	}
 	groupIdStr := args.Search.Fields[0]
 
@@ -1794,7 +1794,7 @@ func (s *Search) DateAggregationContacts(args models.SearchArgs, reply *models.S
 
 func (s *Search) LocationSummaryContacts(args models.SearchArgs, reply *models.SearchReply) error {
 	if len(args.Search.Fields) == 0 {
-		return errors.New("No group_id specified as first field parameter")
+		return models.NoGroupID
 	}
 	groupIdStr := args.Search.Fields[0]
 	maxResults := 500
@@ -2147,7 +2147,7 @@ func (s *Search) LocationSummaryContactsGeoHashWithSearchFilter(args models.Sear
 
 func (s *Search) LocationSummaryContactsGeoHash(args models.SearchArgs, reply *models.SearchReply) error {
 	if len(args.Search.Fields) == 0 {
-		return errors.New("No group_id specified as first field parameter")
+		return models.NoGroupID
 	}
 	if len(args.Search.Fields) < 12 {
 		return fmt.Errorf("Misformed fields parameter; expected at least a 12-sized string array, got a %d-sized array instead", len(args.Search.Fields))
@@ -2797,7 +2797,7 @@ func (s *Search) SearchContactsGeoloc(args models.SearchArgs, reply *models.Sear
 	logs.Debug("args.Search.Fields:%s", args.Search.Fields)
 
 	if len(args.Search.Fields) == 0 {
-		return errors.New("No group_id specified")
+		return models.NoGroupID
 	}
 
 	bq := elastic.NewBoolQuery()
