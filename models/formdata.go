@@ -5,13 +5,15 @@ import "time"
 
 // Formdata represents the components of a note
 type Formdata struct {
-	ID   uint       `db:"id" json:"id"`
-	Data string     `db:"data" json:"data"`
-	Date *time.Time `db:"date" json:"date"`
+	ID        uint `gorm:"primary_key" db:"id" json:"id"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time
+	Data      string     `db:"data" json:"data"`
+	Date      *time.Time `db:"date" json:"date"`
 
 	GroupID     uint `db:"group_id" json:"group_id"`
 	ContactID   uint `db:"contact_id" json:"contact_id"`
-	FactID      uint `db:"fact_id" json:"fact_id"`
 	FormID      uint `db:"form_id" json:"form_id"`
 	Form_ref_id uint `db:"form_ref_id" json:"form_ref_id"`
 }
