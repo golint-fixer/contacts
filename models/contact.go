@@ -3,7 +3,6 @@ package models
 
 import (
 	"time"
-
 	// "github.com/asaskevich/govalidator"
 )
 
@@ -29,13 +28,16 @@ type Address struct {
 
 // Contact represents all the components of a contact
 type Contact struct {
-	ID           uint       `gorm:"primary_key" json:"id"`
+	ID           uint `gorm:"primary_key" json:"id"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    *time.Time
 	Firstname    string     `sql:"not null" json:"firstname,omitempty"`
 	Surname      string     `json:"surname,omitempty"`
 	MarriedName  *string    `db:"married_name" json:"married_name,omitempty"`
 	Gender       *string    `json:"gender,omitempty"`
 	Birthdate    *time.Time `json:"birthdate,omitempty"`
-	AgeCategory	 uint    		`json:"age_category,omitempty"`
+	AgeCategory  uint       `json:"age_category,omitempty"`
 	BirthDept    *string    `json:"birthdept,omitempty"`
 	BirthCity    *string    `json:"birthcity,omitempty"`
 	BirthCountry *string    `json:"birthcountry,omitempty"`
@@ -45,12 +47,12 @@ type Contact struct {
 	Address      Address    `json:"address,omitempty"`
 	AddressID    uint       `json:"-" db:"address_id"`
 
-	LastChange    *time.Time `json:"lastchange,omitempty"`
-	LastChangeUserID    uint `json:"lastchangeuserid,omitempty"`
+	LastChange       *time.Time `json:"lastchange,omitempty"`
+	LastChangeUserID uint       `json:"lastchangeuserid,omitempty"`
 
-	GroupID uint `sql:"not null" db:"group_id" json:"group_id"`
-	UserID uint `db:"user_id" json:"user_id,omitempty"`
-	UserSurname uint `db:"user_surname" json:"user_surname,omitempty"`
+	GroupID       uint `sql:"not null" db:"group_id" json:"group_id"`
+	UserID        uint `db:"user_id" json:"user_id,omitempty"`
+	UserSurname   uint `db:"user_surname" json:"user_surname,omitempty"`
 	UserFirstname uint `db:"user_firstname" json:"user_firstname,omitempty"`
 
 	Notes     []Note     `json:"notes,omitempty"`
